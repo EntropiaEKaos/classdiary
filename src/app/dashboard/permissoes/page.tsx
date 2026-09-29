@@ -3,7 +3,7 @@ import { requireSchoolRole } from "@/lib/rbac";
 import { db } from "@/lib/db";
 
 export const dynamic="force-dynamic";
-const modules=["academic","students","secretary","finance","crm","reports","messaging"];
+const modules=["academic","students","secretary","finance","crm","reports","messaging","hr","assets","inventory","library","transport","canteen"];
 
 export default async function Page(){
   const {org}=await requireSchoolRole(["SCHOOL_ADMIN"]);
