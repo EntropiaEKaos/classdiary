@@ -7,7 +7,7 @@ export default async function Page(){
   const {org}=await requireSchoolRole(["SCHOOL_ADMIN","COORDINATOR"]);
   const now=new Date();const monthStart=new Date(now.getFullYear(),now.getMonth(),1);const monthEnd=new Date(now.getFullYear(),now.getMonth()+1,1);
 
-  const [students,teachers,employees,alerts,received,expenses,overdue,leads,assets,lowStock,loans,transport,canteen,medicalToday,pendingAuthorizations,maintenanceOpen,maintenanceDue,purchaseOpen,surveyScores,activeGoals,achievedGoals,lessonPlans,competencyAssessments,activeInterventions]=await Promise.all([
+  const [students,teachers,employees,alerts,received,expenses,overdue,leads,assets,lowStock,loans,transport,canteen,medicalToday,pendingAuthorizations,maintenanceOpen,maintenanceDue,purchaseOpen,surveyScores,activeGoals,achievedGoals,lessonPlans,competencyAssessments,activeInterventions,publishedExams,pendingCorrections,questionCount,rubricAssessmentCount]=await Promise.all([
     db.student.count({where:{organizationId:org.id,active:true}}),
     db.membership.count({where:{organizationId:org.id,role:"TEACHER"}}),
     db.employee.count({where:{organizationId:org.id,active:true}}),
@@ -31,7 +31,11 @@ export default async function Page(){
     db.pedagogicalGoal.count({where:{organizationId:org.id,status:"ACHIEVED"}}),
     db.lessonPlan.count({where:{organizationId:org.id}}),
     db.competencyAssessment.count({where:{organizationId:org.id}}),
-    db.pedagogicalIntervention.count({where:{organizationId:org.id,status:"ACTIVE"}})
+    db.pedagogicalIntervention.count({where:{organizationId:org.id,status:"ACTIVE"}}),
+    db.exam.count({where:{organizationId:org.id,published:true}}),
+    db.examAttempt.count({where:{organizationId:org.id,status:"PENDING_REVIEW"}}),
+    db.questionBankItem.count({where:{organizationId:org.id,active:true}}),
+    db.rubricAssessment.count({where:{organizationId:org.id}})
   ]);
 
   const academicAlerts=alerts.filter(s=>{
@@ -77,6 +81,10 @@ export default async function Page(){
       <div className="table-row"><strong>Planos de aula</strong><span>{lessonPlans} registrados</span></div>
       <div className="table-row"><strong>Avaliações por competência</strong><span>{competencyAssessments}</span></div>
       <div className="table-row"><strong>Intervenções pedagógicas ativas</strong><span>{activeInterventions}</span></div>
+      <div className="table-row"><strong>Banco de questões</strong><span>{questionCount} questões</span></div>
+      <div className="table-row"><strong>Provas publicadas</strong><span>{publishedExams}</span></div>
+      <div className="table-row"><strong>Correções discursivas pendentes</strong><span>{pendingCorrections}</span></div>
+      <div className="table-row"><strong>Rubricas aplicadas</strong><span>{rubricAssessmentCount}</span></div>
     </section>
   </main>;
 }
