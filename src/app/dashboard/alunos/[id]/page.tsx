@@ -25,7 +25,7 @@ export default async function Page({params}:{params:Promise<{id:string}>}) {
   if(!student) notFound();
 
   return <main className="main">
-    <div className="page-head"><div><h1>{student.name}</h1><div className="muted">Matrícula {student.registration}</div></div></div>
+    <div className="page-head"><div><h1>{student.name}</h1><div className="muted">Matrícula {student.registration}</div></div><a className="btn btn-light" href={"/dashboard/evolucao/"+student.id}>Evolução pedagógica</a></div>
 
     <section className="table-card">
       <h3>Ficha cadastral</h3>
