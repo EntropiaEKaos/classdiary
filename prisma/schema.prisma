@@ -135,6 +135,7 @@ model Subject {
   classSubjects  ClassSubject[]
   lessons        Lesson[]
   grades         Grade[]
+  periodClosures PeriodClosure[]
 
   @@unique([organizationId, name])
 }
@@ -225,6 +226,7 @@ model Grade {
   label     String
   value     Decimal  @db.Decimal(5, 2)
   maxValue  Decimal  @default(10) @db.Decimal(5, 2)
+  weight    Decimal  @default(1) @db.Decimal(5, 2)
   notes     String?
   student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
@@ -232,6 +234,20 @@ model Grade {
   createdAt DateTime @default(now())
 
   @@index([studentId, subjectId, period])
+}
+
+model PeriodClosure {
+  id             String       @id @default(cuid())
+  organizationId String
+  schoolYearId   String
+  period         String
+  closedAt       DateTime     @default(now())
+  closedById     String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  schoolYear     SchoolYear   @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, schoolYearId, period])
+  @@index([organizationId, period])
 }
 
 model Announcement {
