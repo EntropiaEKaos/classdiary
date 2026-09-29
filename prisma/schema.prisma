@@ -93,6 +93,7 @@ model Session {
   id        String   @id @default(cuid())
   tokenHash String   @unique
   userId    String
+  activeOrganizationId String?
   expiresAt DateTime
   userAgent String?
   ipAddress String?
