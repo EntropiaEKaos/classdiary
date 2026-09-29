@@ -75,6 +75,11 @@ model Organization {
   expenses Expense[]
   revenues Revenue[]
   contractAcceptances ContractAcceptance[]
+  leadInteractions LeadInteraction[]
+  fileAssets FileAsset[]
+  documentTemplates DocumentTemplate[]
+  permissionOverrides PermissionOverride[]
+  collectionRules CollectionRule[]
   subscription  Subscription?
   auditLogs     AuditLog[]
   createdAt     DateTime       @default(now())
@@ -108,6 +113,8 @@ model User {
   absenceJustificationsReviewed AbsenceJustification[] @relation("AbsenceJustificationReviewer")
   gradeReviewRequestsCreated GradeReviewRequest[] @relation("GradeReviewCreator")
   gradeReviewRequestsReviewed GradeReviewRequest[] @relation("GradeReviewReviewer")
+  leadInteractions LeadInteraction[] @relation("LeadInteractionAuthor")
+  fileAssetsUploaded FileAsset[] @relation("FileAssetUploader")
   auditLogs   AuditLog[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -134,6 +141,7 @@ model Membership {
   role           UserRole
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions    PermissionOverride[]
   createdAt      DateTime     @default(now())
 
   @@unique([organizationId, userId, role])
@@ -605,11 +613,99 @@ model EnrollmentLead {
   convertedStudentId String?
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   convertedStudent Student?   @relation(fields: [convertedStudentId], references: [id], onDelete: SetNull)
+  interactions   LeadInteraction[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   @@index([organizationId, status, createdAt])
   @@index([guardianPhone])
+}
+
+model LeadInteraction {
+  id             String         @id @default(cuid())
+  organizationId String
+  leadId         String
+  authorId       String
+  type           String
+  note           String
+  nextFollowUpAt DateTime?
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead           EnrollmentLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  author         User           @relation("LeadInteractionAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt      DateTime       @default(now())
+
+  @@index([organizationId, nextFollowUpAt])
+  @@index([leadId, createdAt])
+}
+
+model PermissionOverride {
+  id             String       @id @default(cuid())
+  organizationId String
+  membershipId   String
+  module         String
+  canView        Boolean      @default(true)
+  canCreate      Boolean      @default(false)
+  canUpdate      Boolean      @default(false)
+  canDelete      Boolean      @default(false)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  membership     Membership   @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([membershipId, module])
+  @@index([organizationId, module])
+}
+
+model FileAsset {
+  id             String       @id @default(cuid())
+  organizationId String
+  uploadedById   String
+  storageKey     String       @unique
+  originalName   String
+  mimeType       String
+  sizeBytes      Int
+  publicUrl      String?
+  category       String
+  entityType     String?
+  entityId       String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploadedBy     User         @relation("FileAssetUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, category, createdAt])
+  @@index([entityType, entityId])
+}
+
+model DocumentTemplate {
+  id             String       @id @default(cuid())
+  organizationId String
+  code           String
+  name           String
+  type           String
+  body           String
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, type])
+}
+
+model CollectionRule {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  daysBeforeDue  Int?
+  daysAfterDue   Int?
+  channel        String       @default("IN_APP")
+  messageTemplate String
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, active])
 }
 
 model ContractAcceptance {
