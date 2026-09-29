@@ -35,7 +35,7 @@ export default async function Page(){
       <h3>Contratos</h3>
       {contracts.map(c=><div className="notice" key={c.id}>
         <strong>{c.student.name} · {c.title}</strong>
-        <div className="muted">R$ {Number(c.monthlyAmount).toFixed(2)} · {c.scholarshipLabel??"Sem bolsa"} · {c.status}</div>
+        <div className="muted">R$ {Number(c.monthlyAmount).toFixed(2)} · {c.scholarshipLabel??"Sem bolsa"} · {c.status}</div><p><a className="btn btn-light" href={"/contrato/"+c.id} target="_blank">Abrir link de aceite</a></p>
         <form action={generateMonthlyInvoiceAction} className="form-grid compact" style={{marginTop:8}}>
           <input type="hidden" name="contractId" value={c.id}/>
           <input name="month" type="number" min="1" max="12" defaultValue={now.getMonth()+1}/>
