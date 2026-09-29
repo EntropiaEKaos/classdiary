@@ -30,6 +30,8 @@ const roleDefaults: Record<SchoolRole, Record<string, PermissionAction[]>> = {
     bi: ["view"],
     curriculum: ["view"],
     pedagogy: ["view", "create", "update"],
+    assessments: ["view", "create", "update"],
+    assessments: ["view", "create", "update"],
     assistant: ["view"],
     curriculum: ["view", "create", "update"],
     pedagogy: ["view", "create", "update"],
