@@ -92,3 +92,14 @@ select{width:100%;border:1px solid var(--border);background:#fff;border-radius:1
 .top-actions form{display:flex;align-items:center;gap:8px}
 .top-actions select{min-width:190px}
 @media(max-width:900px){.top-actions{gap:6px}.top-actions select{min-width:140px}}
+
+.finance-chart{display:flex;align-items:flex-end;gap:14px;min-height:240px;overflow-x:auto;padding:24px 8px 8px}
+.finance-chart-month{min-width:58px;display:flex;flex-direction:column;align-items:center;gap:6px}
+.finance-bars{height:190px;display:flex;align-items:flex-end;gap:5px}
+.finance-bar{width:16px;border-radius:6px 6px 2px 2px;background:currentColor;opacity:.82}
+.finance-bar.income{color:#16a34a}
+.finance-bar.expense{color:#dc2626}
+.positive{color:#15803d;font-weight:700}
+.negative{color:#b91c1c;font-weight:700}
+textarea{width:100%;border:1px solid var(--border);background:#fff;border-radius:11px;padding:11px 12px;outline:none;font:inherit;resize:vertical}
+textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(91,91,214,.1)}
