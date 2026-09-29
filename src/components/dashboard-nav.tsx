@@ -59,6 +59,12 @@ const items = [
   ["/dashboard/biblioteca", "Biblioteca", BookOpenCheck],
   ["/dashboard/transporte", "Transporte", School],
   ["/dashboard/cantina", "Cantina", FileText],
+  ["/dashboard/enfermaria", "Enfermaria", TriangleAlert],
+  ["/dashboard/autorizacoes", "Autorizações", ClipboardCheck],
+  ["/dashboard/recursos", "Recursos", CalendarDays],
+  ["/dashboard/manutencao", "Manutenção", Files],
+  ["/dashboard/compras", "Compras", Layers3],
+  ["/dashboard/automacoes", "Automações", FileText],
   ["/dashboard/configuracoes", "Configurações", FileText],
 ] as const;
 
