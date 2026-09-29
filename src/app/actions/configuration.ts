@@ -58,13 +58,24 @@ export async function createAcademicPeriodAction(fd: FormData) {
     order: fd.get("order"),
   });
 
+  const startsAt = new Date(p.startsAt);
+  const endsAt = new Date(p.endsAt);
+
+  if (endsAt <= startsAt) {
+    throw new Error("A data final do período deve ser posterior à data inicial.");
+  }
+
+  if (startsAt < year.startsAt || endsAt > year.endsAt) {
+    throw new Error("O período deve estar dentro do ano letivo ativo.");
+  }
+
   const period = await db.academicPeriod.create({
     data: {
       organizationId: org.id,
       schoolYearId: year.id,
       name: p.name,
-      startsAt: new Date(p.startsAt),
-      endsAt: new Date(p.endsAt),
+      startsAt,
+      endsAt,
       order: p.order,
     },
   });
@@ -108,6 +119,34 @@ export async function createTimetableEntryAction(fd: FormData) {
     db.subject.findFirst({ where: { id: p.subjectId, organizationId: org.id } }),
   ]);
   if (!group || !subject) throw new Error("Turma ou disciplina inválida.");
+
+  if (p.teacherId) {
+    const teacher = await db.membership.findFirst({
+      where: {
+        organizationId: org.id,
+        userId: p.teacherId,
+        role: "TEACHER",
+      },
+    });
+    if (!teacher) throw new Error("Professor inválido para esta escola.");
+  }
+
+  const conflict = await db.timetableEntry.findFirst({
+    where: {
+      organizationId: org.id,
+      weekday: p.weekday,
+      startsAt: { lt: p.endsAt },
+      endsAt: { gt: p.startsAt },
+      OR: [
+        { classGroupId: group.id },
+        ...(p.teacherId ? [{ teacherId: p.teacherId }] : []),
+      ],
+    },
+  });
+
+  if (conflict) {
+    throw new Error("Existe conflito de horário para a turma ou professor.");
+  }
 
   const entry = await db.timetableEntry.create({
     data: {
