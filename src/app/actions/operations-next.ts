@@ -140,3 +140,69 @@ export async function answerGuardianAuthorizationAction(fd:FormData){
   });
   revalidatePath("/portal");
 }
+
+
+export async function runAutomationRulesAction(){
+  const {user,org}=await requireModulePermission("automation","update");
+  const rules=await db.automationRule.findMany({where:{organizationId:org.id,active:true}});
+  const recipients=await db.membership.findMany({
+    where:{organizationId:org.id,role:{in:["SCHOOL_ADMIN","COORDINATOR","SECRETARY"]}}
+  });
+  const userIds=[...new Set(recipients.map(r=>r.userId))];
+  let created=0;
+
+  for(const rule of rules){
+    let matches:{title:string;body:string;href:string}[]=[];
+
+    if(rule.event==="MAINTENANCE_DUE"){
+      const due=await db.maintenancePlan.findMany({
+        where:{organizationId:org.id,active:true,nextDueAt:{lte:new Date(Date.now()+7*86400000)}},
+        include:{asset:true},take:100
+      });
+      matches=due.map(item=>({
+        title:rule.name,
+        body:`${item.asset.name}: ${item.name} vence em ${item.nextDueAt.toLocaleDateString("pt-BR")}`,
+        href:"/dashboard/manutencao"
+      }));
+    }
+
+    if(rule.event==="LOW_STOCK"){
+      const items=await db.inventoryItem.findMany({where:{organizationId:org.id,active:true},take:500});
+      matches=items.filter(item=>Number(item.quantity)<=Number(item.minQuantity)).map(item=>({
+        title:rule.name,
+        body:`${item.name}: saldo ${String(item.quantity)} ${item.unit}`,
+        href:"/dashboard/estoque"
+      }));
+    }
+
+    if(rule.event==="AUTHORIZATION_PENDING"){
+      const pending=await db.guardianAuthorization.findMany({
+        where:{organizationId:org.id,status:"PENDING"},include:{student:true},take:100
+      });
+      matches=pending.map(item=>({
+        title:rule.name,
+        body:`${item.student.name}: ${item.title}`,
+        href:"/dashboard/autorizacoes"
+      }));
+    }
+
+    if(rule.action==="CREATE_NOTIFICATION"){
+      for(const match of matches){
+        for(const userId of userIds){
+          await db.notification.create({
+            data:{organizationId:org.id,userId,type:"AUTOMATION",title:match.title,body:match.body,href:match.href}
+          });
+          created+=1;
+        }
+      }
+    }
+  }
+
+  await db.auditLog.create({data:{
+    userId:user.id,organizationId:org.id,action:"RUN",entity:"AutomationRule",
+    metadata:{rules:rules.length,notificationsCreated:created}
+  }});
+
+  revalidatePath("/dashboard/automacoes");
+  revalidatePath("/notificacoes");
+}
