@@ -46,6 +46,7 @@ model Organization {
   subjects      Subject[]
   students      Student[]
   announcements Announcement[]
+  periodClosures PeriodClosure[]
   subscription  Subscription?
   auditLogs     AuditLog[]
   createdAt     DateTime       @default(now())
