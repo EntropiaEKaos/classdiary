@@ -25,6 +25,7 @@ const items = [
   ["/dashboard/matriculas", "Matrículas", Layers3],
   ["/dashboard/rematricula", "Rematrícula", Layers3],
   ["/dashboard/importar-alunos", "Importar alunos", UserPlus],
+  ["/dashboard/pre-inscricoes", "Pré-inscrições", UserPlus],
   ["/dashboard/resultados", "Resultados anuais", ChartNoAxesColumnIncreasing],
   ["/dashboard/professores", "Professores", Users],
   ["/dashboard/convites", "Convites", UserPlus],
