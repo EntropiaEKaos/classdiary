@@ -137,7 +137,6 @@ model User {
   active      Boolean      @default(true)
   memberships Membership[]
   sessions     Session[]
-  activeOrganizationSessions Session[] @relation("ActiveOrganizationSession")
   lessons     Lesson[]     @relation("TeacherLessons")
   grades      Grade[]      @relation("GradeAuthor")
   guardianships StudentGuardian[]
