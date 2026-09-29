@@ -3,7 +3,7 @@ import {revalidatePath} from "next/cache";
 import {redirect} from "next/navigation";
 import {z} from "zod";
 import {db} from "@/lib/db";
-import {requireSchoolRole} from "@/lib/rbac";
+import {requireModulePermission,requireSchoolRole} from "@/lib/rbac";
 import {requireUser,activeOrganization} from "@/lib/auth";
 
 export async function createAssignmentAction(fd:FormData){
@@ -71,5 +71,61 @@ export async function createAcademicDocumentAction(fd:FormData){
     studentId:String(fd.get("studentId")??""),type:String(fd.get("type")??"").trim(),title:String(fd.get("title")??"").trim()
   });
   await db.academicDocument.create({data:{organizationId:org.id,studentId:p.studentId,authorId:user.id,type:p.type,title:p.title,payload:{issuedAt:new Date().toISOString()}}});
+  revalidatePath("/dashboard/documentos");
+}
+
+
+export async function generateDocumentFromTemplateAction(fd:FormData){
+  const {user,org}=await requireModulePermission("secretary","create");
+  const p=z.object({studentId:z.string().min(1),templateId:z.string().min(1),title:z.string().min(2)}).parse({
+    studentId:String(fd.get("studentId")??""),
+    templateId:String(fd.get("templateId")??""),
+    title:String(fd.get("title")??"").trim()
+  });
+
+  const [student,template]=await Promise.all([
+    db.student.findFirst({
+      where:{id:p.studentId,organizationId:org.id},
+      include:{enrollments:{where:{active:true},include:{classGroup:true}}}
+    }),
+    db.documentTemplate.findFirst({
+      where:{id:p.templateId,organizationId:org.id,active:true}
+    })
+  ]);
+
+  if(!student||!template)throw new Error("Aluno ou template inválido");
+
+  const rendered=template.body
+    .replaceAll("{{student}}",student.name)
+    .replaceAll("{{registration}}",student.registration)
+    .replaceAll("{{school}}",org.name)
+    .replaceAll("{{class}}",student.enrollments[0]?.classGroup.name??"")
+    .replaceAll("{{date}}",new Date().toLocaleDateString("pt-BR"));
+
+  const doc=await db.academicDocument.create({
+    data:{
+      organizationId:org.id,
+      studentId:student.id,
+      authorId:user.id,
+      type:template.type,
+      title:p.title,
+      payload:{
+        templateId:template.id,
+        templateCode:template.code,
+        renderedBody:rendered,
+        issuedAt:new Date().toISOString()
+      }
+    }
+  });
+
+  await db.auditLog.create({data:{
+    userId:user.id,
+    organizationId:org.id,
+    action:"GENERATE",
+    entity:"AcademicDocument",
+    entityId:doc.id,
+    metadata:{templateId:template.id}
+  }});
+
   revalidatePath("/dashboard/documentos");
 }
