@@ -87,20 +87,23 @@ export async function requireModulePermission(
     },
   });
 
-  for (const override of overrides) {
-    const allowed =
-      action === "view"
+  const overrideByMembership = new Map(
+    overrides.map((override) => [override.membershipId, override]),
+  );
+
+  const defaultAllowed = memberships.some((membership) => {
+    const override = overrideByMembership.get(membership.id);
+
+    if (override) {
+      return action === "view"
         ? override.canView
         : action === "create"
           ? override.canCreate
           : action === "update"
             ? override.canUpdate
             : override.canDelete;
+    }
 
-    if (allowed) return { user, org };
-  }
-
-  const defaultAllowed = memberships.some((membership) => {
     const role = membership.role as SchoolRole;
     const permissions = roleDefaults[role];
     if (!permissions) return false;
