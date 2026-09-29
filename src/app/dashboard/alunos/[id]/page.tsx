@@ -17,6 +17,9 @@ export default async function Page({params}:{params:Promise<{id:string}>}) {
       documentRequirements:true,
       academicMovements:{include:{fromClassGroup:true,toClassGroup:true},orderBy:{effectiveAt:"desc"}},
       annualResults:{include:{schoolYear:true},orderBy:{createdAt:"desc"}},
+      contracts:true,
+      invoices:{include:{payments:true},orderBy:{dueAt:"desc"},take:50},
+      receipts:{orderBy:{issuedAt:"desc"},take:20},
     },
   });
   if(!student) notFound();
@@ -71,6 +74,16 @@ export default async function Page({params}:{params:Promise<{id:string}>}) {
         {student.annualResults.map(r=><div className="notice" key={r.id}><strong>{r.schoolYear.name} · {r.status}</strong><div className="muted">Média {r.finalAverage?String(r.finalAverage):"—"} · Freq. {r.attendancePercent?String(r.attendancePercent):"—"}%</div></div>)}
       </section>
     </div>
+
+    <section className="table-card" style={{marginTop:16}}>
+      <h3>Resumo financeiro</h3>
+      <div className="dashboard-grid">
+        <div className="kpi"><span className="muted">Contratos</span><div className="value">{student.contracts.length}</div></div>
+        <div className="kpi"><span className="muted">Cobranças abertas</span><div className="value">{student.invoices.filter(i=>i.status!=="PAID").length}</div></div>
+        <div className="kpi"><span className="muted">Recibos</span><div className="value">{student.receipts.length}</div></div>
+        <div className="kpi"><span className="muted">Saldo em aberto</span><div className="value">R$ {student.invoices.filter(i=>i.status!=="PAID").reduce((sum,i)=>sum+Math.max(0,(Number(i.amount)-Number(i.discountAmount)+Number(i.fineAmount)+Number(i.interestAmount))-i.payments.reduce((s,p)=>s+Number(p.amount),0)),0).toFixed(2)}</div></div>
+      </div>
+    </section>
 
     <section className="table-card" style={{marginTop:16}}>
       <h3>Movimentações acadêmicas</h3>
