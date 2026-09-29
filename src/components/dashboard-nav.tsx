@@ -45,6 +45,7 @@ const items = [
   ["/dashboard/relatorios", "Relatórios", ChartNoAxesColumnIncreasing],
   ["/dashboard/historico", "Histórico", Files],
   ["/dashboard/documentos", "Documentos", FileText],
+  ["/dashboard/financeiro", "Financeiro", ChartNoAxesColumnIncreasing],
   ["/dashboard/auditoria", "Auditoria", FileText],
   ["/dashboard/configuracoes", "Configurações", FileText],
 ] as const;
