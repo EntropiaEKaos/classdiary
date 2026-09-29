@@ -33,7 +33,7 @@ export default async function Page(){
     </section>
 
     {students.map(student=><section className="table-card" style={{marginTop:16}} key={student.id}>
-      <h3>{student.name}</h3>
+      <div className="page-head" style={{marginBottom:8}}><h3>{student.name}</h3><a className="btn btn-light" href={`/api/boletins/${student.id}`} target="_blank">Abrir PDF</a></div>
       {periods.map(period=>{
         const periodGrades=student.grades.filter(g=>g.period===period);
         const subjects=[...new Map(periodGrades.map(g=>[g.subjectId,g.subject])).values()];
