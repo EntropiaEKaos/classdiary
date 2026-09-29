@@ -65,6 +65,8 @@ model Organization {
   documentRequirements StudentDocumentRequirement[]
   academicMovements AcademicMovement[]
   annualResults AnnualResult[]
+  grades Grade[]
+  recoveryGrades RecoveryGrade[]
   financialSettings FinancialSettings?
   studentContracts StudentContract[]
   invoices Invoice[]
@@ -250,6 +252,8 @@ model ClassGroup {
   pedagogicalInterventions PedagogicalIntervention[]
   competencyAssessments CompetencyAssessment[]
   exams Exam[]
+  grades Grade[]
+  recoveryGrades RecoveryGrade[]
 
   @@unique([organizationId, schoolYearId, name])
   @@index([organizationId, schoolYearId])
@@ -408,6 +412,9 @@ model Grade {
   studentId String
   subjectId String
   authorId  String
+  schoolYearId String?
+  classGroupId String?
+  academicPeriodId String?
   period    String
   label     String
   value     Decimal  @db.Decimal(5, 2)
@@ -417,12 +424,17 @@ model Grade {
   examAttemptId String? @unique
   student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  schoolYear SchoolYear? @relation(fields: [schoolYearId], references: [id], onDelete: SetNull)
+  classGroup ClassGroup? @relation(fields: [classGroupId], references: [id], onDelete: SetNull)
+  academicPeriod AcademicPeriod? @relation(fields: [academicPeriodId], references: [id], onDelete: SetNull)
   author    User     @relation("GradeAuthor", fields: [authorId], references: [id])
   examAttempt ExamAttempt? @relation(fields: [examAttemptId], references: [id], onDelete: SetNull)
   reviewRequests GradeReviewRequest[]
   createdAt DateTime @default(now())
 
   @@index([studentId, subjectId, period])
+  @@index([schoolYearId, academicPeriodId])
+  @@index([classGroupId, subjectId])
 }
 
 model StudentUser {
@@ -483,14 +495,22 @@ model RecoveryGrade {
   id        String   @id @default(cuid())
   studentId String
   subjectId String
+  schoolYearId String?
+  classGroupId String?
+  academicPeriodId String?
   period    String
   value     Decimal  @db.Decimal(5, 2)
   notes     String?
   student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  schoolYear SchoolYear? @relation(fields: [schoolYearId], references: [id], onDelete: SetNull)
+  classGroup ClassGroup? @relation(fields: [classGroupId], references: [id], onDelete: SetNull)
+  academicPeriod AcademicPeriod? @relation(fields: [academicPeriodId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
 
   @@index([studentId, subjectId, period])
+  @@index([schoolYearId, academicPeriodId])
+  @@index([classGroupId, subjectId])
 }
 
 model CouncilDecision {
@@ -1903,6 +1923,8 @@ model AcademicPeriod {
   schoolYear     SchoolYear   @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
   assignments    Assignment[]
   exams          Exam[]
+  grades          Grade[]
+  recoveryGrades  RecoveryGrade[]
   createdAt      DateTime     @default(now())
 
   @@unique([organizationId, schoolYearId, name])
