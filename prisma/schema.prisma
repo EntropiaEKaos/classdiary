@@ -1494,6 +1494,7 @@ model ExamAnswer {
   autoCorrect    Boolean?
   autoScore      Decimal     @default(0) @db.Decimal(7, 2)
   manualScore    Decimal     @default(0) @db.Decimal(7, 2)
+  manuallyGraded Boolean     @default(false)
   feedback       String?
   attempt        ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   examQuestion   ExamQuestion @relation(fields: [examQuestionId], references: [id], onDelete: Cascade)
