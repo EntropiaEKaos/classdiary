@@ -118,6 +118,10 @@ model Organization {
   exams Exam[]
   examAttempts ExamAttempt[]
   rubricAssessments RubricAssessment[]
+  examRecoveryCases ExamRecoveryCase[]
+  examAttemptAllowances ExamAttemptAllowance[]
+  examReviewRequests ExamReviewRequest[]
+  examIntegrityEvents ExamIntegrityEvent[]
   subscription  Subscription?
   auditLogs     AuditLog[]
   createdAt     DateTime       @default(now())
@@ -167,9 +171,13 @@ model User {
   interventionsCreated PedagogicalIntervention[] @relation("InterventionCreator")
   competencyAssessmentsCreated CompetencyAssessment[] @relation("CompetencyAssessmentAuthor")
   observationsCreated PedagogicalObservation[] @relation("PedagogicalObservationAuthor")
+  periodClosuresClosed PeriodClosure[] @relation("PeriodClosureCloser")
   questionsCreated QuestionBankItem[] @relation("QuestionAuthor")
   examsCreated Exam[] @relation("ExamAuthor")
   rubricAssessmentsCreated RubricAssessment[] @relation("RubricAssessmentAuthor")
+  examAllowancesGranted ExamAttemptAllowance[] @relation("ExamAllowanceGranter")
+  examReviewsCreated ExamReviewRequest[] @relation("ExamReviewCreator")
+  examReviewsReviewed ExamReviewRequest[] @relation("ExamReviewReviewer")
   auditLogs   AuditLog[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -337,6 +345,9 @@ model Student {
   pedagogicalObservations PedagogicalObservation[]
   examAttempts ExamAttempt[]
   rubricAssessments RubricAssessment[]
+  examRecoveryCases ExamRecoveryCase[]
+  examAttemptAllowances ExamAttemptAllowance[]
+  examReviewRequests ExamReviewRequest[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -494,8 +505,6 @@ model CouncilDecision {
   student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   author         User         @relation("CouncilAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   schoolYear     SchoolYear   @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
-  assignments    Assignment[]
-  exams          Exam[]
   createdAt      DateTime     @default(now())
 
   @@index([organizationId, schoolYearId, period])
@@ -1450,6 +1459,10 @@ model Exam {
   author         User         @relation("ExamAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   questions      ExamQuestion[]
   attempts       ExamAttempt[]
+  recoverySourceCases ExamRecoveryCase[] @relation("RecoverySourceExam")
+  recoveryTargetCases ExamRecoveryCase[] @relation("RecoveryTargetExam")
+  attemptAllowances ExamAttemptAllowance[]
+  reviewRequests ExamReviewRequest[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -1493,10 +1506,16 @@ model ExamAttempt {
   manualScore    Decimal      @default(0) @db.Decimal(7, 2)
   finalScore     Decimal      @default(0) @db.Decimal(7, 2)
   gradePostedAt  DateTime?
+  variantCode    String?
+  questionOrder  Json?
+  integrityScore Int          @default(100)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   exam           Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
   student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   grade          Grade?
+  recoveryCase   ExamRecoveryCase?
+  integrityEvents ExamIntegrityEvent[]
+  reviewRequests ExamReviewRequest[]
   answers        ExamAnswer[]
 
   @@index([organizationId, status, startedAt])
@@ -1517,6 +1536,88 @@ model ExamAnswer {
   examQuestion   ExamQuestion @relation(fields: [examQuestionId], references: [id], onDelete: Cascade)
 
   @@unique([attemptId, examQuestionId])
+}
+
+model ExamRecoveryCase {
+  id             String       @id @default(cuid())
+  organizationId String
+  studentId      String
+  originalExamId String
+  originalAttemptId String    @unique
+  recoveryExamId String?
+  threshold      Decimal      @db.Decimal(5, 2)
+  originalPercent Decimal     @db.Decimal(5, 2)
+  status         String       @default("ELIGIBLE")
+  generatedAt    DateTime     @default(now())
+  completedAt    DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  originalExam   Exam         @relation("RecoverySourceExam", fields: [originalExamId], references: [id], onDelete: Cascade)
+  recoveryExam   Exam?        @relation("RecoveryTargetExam", fields: [recoveryExamId], references: [id], onDelete: SetNull)
+  originalAttempt ExamAttempt @relation(fields: [originalAttemptId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, generatedAt])
+  @@index([studentId, status])
+}
+
+model ExamAttemptAllowance {
+  id             String       @id @default(cuid())
+  organizationId String
+  examId         String
+  studentId      String
+  grantedById    String
+  type           String
+  extraAttempts  Int          @default(1)
+  reason         String?
+  validUntil     DateTime?
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  exam           Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  grantedBy      User         @relation("ExamAllowanceGranter", fields: [grantedById], references: [id], onDelete: Restrict)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, type, active])
+  @@index([examId, studentId])
+}
+
+model ExamReviewRequest {
+  id             String       @id @default(cuid())
+  organizationId String
+  examId         String
+  attemptId      String
+  studentId      String
+  createdById    String
+  reviewedById   String?
+  reason         String
+  status         String       @default("PENDING")
+  response       String?
+  reviewedAt     DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  exam           Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
+  attempt        ExamAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdBy      User         @relation("ExamReviewCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  reviewedBy     User?        @relation("ExamReviewReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, status, createdAt])
+  @@index([attemptId, status])
+}
+
+model ExamIntegrityEvent {
+  id             String       @id @default(cuid())
+  organizationId String
+  attemptId      String
+  type           String
+  detail         String?
+  penalty        Int          @default(0)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  attempt        ExamAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, type, createdAt])
+  @@index([attemptId, createdAt])
 }
 
 model RubricAssessment {
@@ -1798,6 +1899,8 @@ model AcademicPeriod {
   active         Boolean      @default(true)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   schoolYear     SchoolYear   @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  assignments    Assignment[]
+  exams          Exam[]
   createdAt      DateTime     @default(now())
 
   @@unique([organizationId, schoolYearId, name])
@@ -1949,6 +2052,7 @@ model PeriodClosure {
   closedById     String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   schoolYear     SchoolYear   @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  closedBy       User         @relation("PeriodClosureCloser", fields: [closedById], references: [id], onDelete: Restrict)
 
   @@unique([organizationId, schoolYearId, period])
   @@index([organizationId, period])
