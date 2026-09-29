@@ -58,6 +58,10 @@ model Organization {
   documents      AcademicDocument[]
   councilDecisions CouncilDecision[]
   periodClosures PeriodClosure[]
+  conversations Conversation[]
+  notifications Notification[]
+  absenceJustifications AbsenceJustification[]
+  gradeReviewRequests GradeReviewRequest[]
   subscription  Subscription?
   auditLogs     AuditLog[]
   createdAt     DateTime       @default(now())
@@ -84,6 +88,13 @@ model User {
   documentsCreated AcademicDocument[] @relation("DocumentAuthor")
   councilDecisions CouncilDecision[] @relation("CouncilAuthor")
   timetableEntries TimetableEntry[] @relation("TimetableTeacher")
+  conversationParticipants ConversationParticipant[]
+  sentMessages Message[] @relation("MessageSender")
+  notifications Notification[]
+  absenceJustificationsCreated AbsenceJustification[] @relation("AbsenceJustificationCreator")
+  absenceJustificationsReviewed AbsenceJustification[] @relation("AbsenceJustificationReviewer")
+  gradeReviewRequestsCreated GradeReviewRequest[] @relation("GradeReviewCreator")
+  gradeReviewRequestsReviewed GradeReviewRequest[] @relation("GradeReviewReviewer")
   auditLogs   AuditLog[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -202,6 +213,8 @@ model Student {
   recoveryGrades RecoveryGrade[]
   councilDecisions CouncilDecision[]
   documents      AcademicDocument[]
+  absenceJustifications AbsenceJustification[]
+  gradeReviewRequests GradeReviewRequest[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -250,6 +263,8 @@ model Attendance {
   student   Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([lessonId, studentId])
+  justifications AbsenceJustification[]
+
   @@index([studentId, status])
 }
 
@@ -267,6 +282,7 @@ model Grade {
   student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   author    User     @relation("GradeAuthor", fields: [authorId], references: [id])
+  reviewRequests GradeReviewRequest[]
   createdAt DateTime @default(now())
 
   @@index([studentId, subjectId, period])
@@ -457,6 +473,108 @@ model TimetableEntry {
 
   @@index([organizationId, weekday, startsAt])
   @@index([classGroupId, weekday])
+}
+
+model Conversation {
+  id             String       @id @default(cuid())
+  organizationId String
+  subject        String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  participants   ConversationParticipant[]
+  messages       Message[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, updatedAt])
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  userId         String
+  lastReadAt     DateTime?
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([conversationId, userId])
+  @@index([userId, lastReadAt])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  senderId       String
+  body           String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+model Notification {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  type           String
+  title          String
+  body           String?
+  href           String?
+  readAt         DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([userId, readAt, createdAt])
+  @@index([organizationId, createdAt])
+}
+
+model AbsenceJustification {
+  id             String       @id @default(cuid())
+  organizationId String
+  attendanceId   String
+  studentId      String
+  createdById    String
+  reason         String
+  attachmentUrl  String?
+  status         String       @default("PENDING")
+  reviewedById   String?
+  reviewedAt     DateTime?
+  reviewNote     String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  attendance     Attendance   @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdBy      User         @relation("AbsenceJustificationCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  reviewedBy     User?        @relation("AbsenceJustificationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+
+  @@unique([attendanceId])
+  @@index([organizationId, status, createdAt])
+  @@index([studentId, createdAt])
+}
+
+model GradeReviewRequest {
+  id             String       @id @default(cuid())
+  organizationId String
+  gradeId        String
+  studentId      String
+  createdById    String
+  reason         String
+  status         String       @default("PENDING")
+  reviewedById   String?
+  reviewedAt     DateTime?
+  response       String?
+  proposedValue  Decimal?     @db.Decimal(5, 2)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  grade          Grade        @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdBy      User         @relation("GradeReviewCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  reviewedBy     User?        @relation("GradeReviewReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, status, createdAt])
+  @@index([studentId, createdAt])
 }
 
 model AcademicEvent {
