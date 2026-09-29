@@ -156,6 +156,67 @@ export async function hasModulePermission(
   });
 }
 
+export async function getAllowedModules(
+  modules: string[],
+  action: PermissionAction = "view",
+) {
+  const user = await requireUser();
+  const org = await activeOrganization();
+
+  if (!org) return new Set<string>();
+
+  const memberships = user.memberships.filter(
+    (membership) => membership.organizationId === org.id,
+  );
+
+  if (!memberships.length) return new Set<string>();
+
+  const uniqueModules = [...new Set(modules)];
+
+  const overrides = await db.permissionOverride.findMany({
+    where: {
+      organizationId: org.id,
+      membershipId: { in: memberships.map((membership) => membership.id) },
+      module: { in: uniqueModules },
+    },
+  });
+
+  const overrideMap = new Map(
+    overrides.map((override) => [
+      override.membershipId + ":" + override.module,
+      override,
+    ]),
+  );
+
+  const allowed = new Set<string>();
+
+  for (const module of uniqueModules) {
+    const ok = memberships.some((membership) => {
+      const override = overrideMap.get(membership.id + ":" + module);
+
+      if (override) {
+        return action === "view"
+          ? override.canView
+          : action === "create"
+            ? override.canCreate
+            : action === "update"
+              ? override.canUpdate
+              : override.canDelete;
+      }
+
+      return actionAllowed(
+        membership.role as SchoolRole,
+        module,
+        action,
+      );
+    });
+
+    if (ok) allowed.add(module);
+  }
+
+  return allowed;
+}
+
 export async function requireModulePermission(
   module: string,
   action: PermissionAction,
