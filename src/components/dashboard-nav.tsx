@@ -65,6 +65,10 @@ const items = [
   ["/dashboard/manutencao", "Manutenção", Files],
   ["/dashboard/compras", "Compras", Layers3],
   ["/dashboard/automacoes", "Automações", FileText],
+  ["/dashboard/qualidade", "Qualidade", ChartNoAxesColumnIncreasing],
+  ["/dashboard/metas", "Metas", ClipboardCheck],
+  ["/dashboard/bi", "BI executivo", ChartNoAxesColumnIncreasing],
+  ["/dashboard/assistente", "Assistente", FileText],
   ["/dashboard/configuracoes", "Configurações", FileText],
 ] as const;
 
