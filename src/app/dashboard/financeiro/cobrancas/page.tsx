@@ -1,4 +1,5 @@
 import { applyOverdueChargesAction, registerPaymentAction } from "@/app/actions/finance";
+import { generateInvoicesBatchAction } from "@/app/actions/enrollment-finance";
 import { requireSchoolRole } from "@/lib/rbac";
 import { db } from "@/lib/db";
 
@@ -13,7 +14,7 @@ export default async function Page(){
     take:500
   });
 
-  return <main className="main"><div className="page-head"><div><h1>Cobranças</h1><div className="muted">Mensalidades, baixa de pagamento e inadimplência.</div></div></div>
+  return <main className="main"><div className="page-head"><div><h1>Cobranças</h1><div className="muted">Mensalidades, baixa de pagamento e inadimplência.</div></div></div><section className="table-card"><h3>Gerar mensalidades em lote</h3><form action={generateInvoicesBatchAction} className="form-grid compact"><input name="month" type="number" min="1" max="12" defaultValue={new Date().getMonth()+1}/><input name="year" type="number" min="2000" max="2100" defaultValue={new Date().getFullYear()}/><button className="btn btn-primary">Gerar para contratos ativos</button></form></section>
     {rows.length===0?<section className="table-card"><p className="muted">Nenhuma cobrança gerada.</p></section>:rows.map(i=>{
       const paid=i.payments.reduce((sum,p)=>sum+Number(p.amount),0);
       const total=Number(i.amount)-Number(i.discountAmount)+Number(i.fineAmount)+Number(i.interestAmount);
