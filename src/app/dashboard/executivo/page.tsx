@@ -7,7 +7,7 @@ export default async function Page(){
   const {org}=await requireSchoolRole(["SCHOOL_ADMIN","COORDINATOR"]);
   const now=new Date();const monthStart=new Date(now.getFullYear(),now.getMonth(),1);const monthEnd=new Date(now.getFullYear(),now.getMonth()+1,1);
 
-  const [students,teachers,employees,alerts,received,expenses,overdue,leads,assets,lowStock,loans,transport,canteen]=await Promise.all([
+  const [students,teachers,employees,alerts,received,expenses,overdue,leads,assets,lowStock,loans,transport,canteen,medicalToday,pendingAuthorizations,maintenanceOpen,maintenanceDue,purchaseOpen]=await Promise.all([
     db.student.count({where:{organizationId:org.id,active:true}}),
     db.membership.count({where:{organizationId:org.id,role:"TEACHER"}}),
     db.employee.count({where:{organizationId:org.id,active:true}}),
@@ -20,7 +20,12 @@ export default async function Page(){
     db.inventoryItem.findMany({where:{organizationId:org.id,active:true}}),
     db.libraryLoan.count({where:{organizationId:org.id,status:"BORROWED"}}),
     db.transportAssignment.count({where:{organizationId:org.id,active:true}}),
-    db.canteenOrder.aggregate({where:{organizationId:org.id,createdAt:{gte:monthStart,lt:monthEnd},status:"PAID"},_sum:{totalAmount:true}})
+    db.canteenOrder.aggregate({where:{organizationId:org.id,createdAt:{gte:monthStart,lt:monthEnd},status:"PAID"},_sum:{totalAmount:true}}),
+    db.medicalRecord.count({where:{organizationId:org.id,occurredAt:{gte:new Date(now.getFullYear(),now.getMonth(),now.getDate())}}}),
+    db.guardianAuthorization.count({where:{organizationId:org.id,status:"PENDING"}}),
+    db.maintenanceTicket.count({where:{organizationId:org.id,status:{not:"CLOSED"}}}),
+    db.maintenancePlan.count({where:{organizationId:org.id,active:true,nextDueAt:{lte:new Date(Date.now()+7*86400000)}}}),
+    db.purchaseOrder.count({where:{organizationId:org.id,status:{in:["DRAFT","ORDERED"]}}})
   ]);
 
   const academicAlerts=alerts.filter(s=>{
@@ -54,6 +59,11 @@ export default async function Page(){
       <div className="table-row"><strong>Biblioteca</strong><span>{loans} empréstimos ativos</span></div>
       <div className="table-row"><strong>Transporte</strong><span>{transport} alunos atendidos</span></div>
       <div className="table-row"><strong>Cantina no mês</strong><span>R$ {Number(canteen._sum.totalAmount??0).toFixed(2)}</span></div>
+      <div className="table-row"><strong>Enfermaria hoje</strong><span>{medicalToday} atendimentos</span></div>
+      <div className="table-row"><strong>Autorizações pendentes</strong><span>{pendingAuthorizations}</span></div>
+      <div className="table-row"><strong>Chamados de manutenção</strong><span>{maintenanceOpen} abertos</span></div>
+      <div className="table-row"><strong>Preventivas próximas (7 dias)</strong><span>{maintenanceDue}</span></div>
+      <div className="table-row"><strong>Compras em andamento</strong><span>{purchaseOpen}</span></div>
     </section>
   </main>;
 }
