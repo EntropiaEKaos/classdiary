@@ -47,6 +47,7 @@ export default async function Portal() {
           <Link className="btn btn-light" href="/agenda">Agenda</Link>
           <Link className="btn btn-light" href="/mensagens">Mensagens</Link>
           <Link className="btn btn-light" href="/financeiro">Financeiro</Link>
+          <Link className="btn btn-light" href="/pesquisas">Pesquisas</Link>
           <Link className="btn btn-light" href="/notificacoes">Notificações</Link>
         </div>
       </div>
