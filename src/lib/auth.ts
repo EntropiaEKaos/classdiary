@@ -9,3 +9,9 @@ export async function destroySession(){const c=await cookies();const token=c.get
 export async function currentUser(){const token=(await cookies()).get(COOKIE)?.value;if(!token)return null;const s=await db.session.findUnique({where:{tokenHash:hash(token)},include:{user:{include:{memberships:{include:{organization:true}}}}}});if(!s||s.expiresAt<=new Date()||!s.user.active)return null;return s.user;}
 export async function requireUser(){const u=await currentUser();if(!u)redirect("/login");return u;}
 export async function activeOrganization(){const u=await requireUser();return u.memberships.find(m=>m.organization.active&&m.organization.slug!=="classdiary-platform")?.organization??null;}
+
+export async function requirePlatformOwner(){
+  const user=await requireUser();
+  if(!user.memberships.some(m=>m.role==="PLATFORM_OWNER")) redirect("/dashboard");
+  return user;
+}
