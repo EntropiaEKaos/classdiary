@@ -27,14 +27,16 @@ export async function submitAssignmentAction(fd:FormData){
   const user=await requireUser();const org=await activeOrganization();if(!org)redirect("/login");
   const assignmentId=String(fd.get("assignmentId")??"");
   const content=String(fd.get("content")??"").trim();
+  const fileUrl=String(fd.get("fileUrl")??"").trim();
+  if(fileUrl && !z.string().url().safeParse(fileUrl).success) throw new Error("URL do anexo inválida");
   const link=await db.studentUser.findFirst({where:{userId:user.id,student:{organizationId:org.id}},include:{student:true}});
   if(!link)throw new Error("Perfil de aluno não encontrado");
   const assignment=await db.assignment.findFirst({where:{id:assignmentId,organizationId:org.id,classGroup:{enrollments:{some:{studentId:link.studentId,active:true}}}}});
   if(!assignment)throw new Error("Atividade inválida");
   await db.assignmentSubmission.upsert({
     where:{assignmentId_studentId:{assignmentId,studentId:link.studentId}},
-    update:{content,userId:user.id,submittedAt:new Date()},
-    create:{assignmentId,studentId:link.studentId,userId:user.id,content}
+    update:{content,fileUrl:fileUrl||null,userId:user.id,submittedAt:new Date()},
+    create:{assignmentId,studentId:link.studentId,userId:user.id,content,fileUrl:fileUrl||null}
   });
   revalidatePath("/aluno");
 }
