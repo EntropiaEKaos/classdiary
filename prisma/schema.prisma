@@ -46,6 +46,9 @@ model Organization {
   subjects      Subject[]
   students      Student[]
   announcements Announcement[]
+  academicEvents AcademicEvent[]
+  invitations    Invitation[]
+  occurrences    Occurrence[]
   periodClosures PeriodClosure[]
   subscription  Subscription?
   auditLogs     AuditLog[]
@@ -64,6 +67,9 @@ model User {
   sessions     Session[]
   lessons     Lesson[]     @relation("TeacherLessons")
   grades      Grade[]      @relation("GradeAuthor")
+  guardianships StudentGuardian[]
+  invitationsSent Invitation[] @relation("InvitationSender")
+  occurrencesCreated Occurrence[] @relation("OccurrenceAuthor")
   auditLogs   AuditLog[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -136,7 +142,6 @@ model Subject {
   classSubjects  ClassSubject[]
   lessons        Lesson[]
   grades         Grade[]
-  periodClosures PeriodClosure[]
 
   @@unique([organizationId, name])
 }
@@ -167,6 +172,8 @@ model Student {
   enrollments    Enrollment[]
   attendance     Attendance[]
   grades         Grade[]
+  guardians      StudentGuardian[]
+  occurrences    Occurrence[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -235,6 +242,67 @@ model Grade {
   createdAt DateTime @default(now())
 
   @@index([studentId, subjectId, period])
+}
+
+model StudentGuardian {
+  id        String   @id @default(cuid())
+  studentId String
+  userId    String
+  relation  String?
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([studentId, userId])
+  @@index([userId])
+}
+
+model Invitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  email          String
+  role           UserRole
+  tokenHash      String       @unique
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  sentById       String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sentBy         User         @relation("InvitationSender", fields: [sentById], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, email])
+}
+
+model Occurrence {
+  id             String       @id @default(cuid())
+  organizationId String
+  studentId      String
+  authorId       String
+  title          String
+  description    String
+  severity       String       @default("INFO")
+  occurredAt     DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  author         User         @relation("OccurrenceAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, occurredAt])
+  @@index([studentId, occurredAt])
+}
+
+model AcademicEvent {
+  id             String       @id @default(cuid())
+  organizationId String
+  title          String
+  description    String?
+  startsAt       DateTime
+  endsAt         DateTime?
+  audience       String       @default("ALL")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, startsAt])
 }
 
 model PeriodClosure {
