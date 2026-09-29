@@ -58,6 +58,7 @@ export default async function Page() {
         <div className="top-actions">
           <Link className="btn btn-light" href="/agenda">Minha agenda</Link>
           <Link className="btn btn-light" href="/mensagens">Mensagens</Link>
+          <Link className="btn btn-light" href="/financeiro">Financeiro</Link>
           <Link className="btn btn-light" href="/notificacoes">Notificações</Link>
         </div>
       </div>
