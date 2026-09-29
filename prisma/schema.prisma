@@ -1,0 +1,264 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  PLATFORM_OWNER
+  SCHOOL_ADMIN
+  COORDINATOR
+  TEACHER
+  SECRETARY
+  GUARDIAN
+  STUDENT
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+model Organization {
+  id            String         @id @default(cuid())
+  name          String
+  slug          String         @unique
+  document      String?
+  email         String?
+  phone         String?
+  logoUrl       String?
+  active        Boolean        @default(true)
+  memberships   Membership[]
+  schoolYears   SchoolYear[]
+  classGroups   ClassGroup[]
+  subjects      Subject[]
+  students      Student[]
+  announcements Announcement[]
+  subscription  Subscription?
+  auditLogs     AuditLog[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model User {
+  id          String       @id @default(cuid())
+  name        String
+  email       String       @unique
+  passwordHash String?
+  avatarUrl   String?
+  active      Boolean      @default(true)
+  memberships Membership[]
+  lessons     Lesson[]     @relation("TeacherLessons")
+  grades      Grade[]      @relation("GradeAuthor")
+  auditLogs   AuditLog[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Membership {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  role           UserRole
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, userId, role])
+  @@index([organizationId, role])
+}
+
+model SchoolYear {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  startsAt       DateTime
+  endsAt         DateTime
+  active         Boolean      @default(false)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  classGroups    ClassGroup[]
+
+  @@unique([organizationId, name])
+}
+
+model ClassGroup {
+  id             String       @id @default(cuid())
+  organizationId String
+  schoolYearId   String
+  name           String
+  gradeLevel     String?
+  shift          String?
+  room           String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  schoolYear     SchoolYear   @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  enrollments    Enrollment[]
+  classSubjects  ClassSubject[]
+  lessons        Lesson[]
+
+  @@unique([organizationId, schoolYearId, name])
+  @@index([organizationId, schoolYearId])
+}
+
+model Subject {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  code           String?
+  color          String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  classSubjects  ClassSubject[]
+  lessons        Lesson[]
+  grades         Grade[]
+
+  @@unique([organizationId, name])
+}
+
+model ClassSubject {
+  id           String     @id @default(cuid())
+  classGroupId String
+  subjectId    String
+  teacherId    String?
+  classGroup   ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  subject      Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([classGroupId, subjectId])
+  @@index([teacherId])
+}
+
+model Student {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  registration   String
+  birthDate      DateTime?
+  guardianName   String?
+  guardianPhone  String?
+  guardianEmail  String?
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  enrollments    Enrollment[]
+  attendance     Attendance[]
+  grades         Grade[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, registration])
+  @@index([organizationId, name])
+}
+
+model Enrollment {
+  id           String     @id @default(cuid())
+  studentId    String
+  classGroupId String
+  active       Boolean    @default(true)
+  student      Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classGroup   ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([studentId, classGroupId])
+}
+
+model Lesson {
+  id           String       @id @default(cuid())
+  classGroupId String
+  subjectId    String
+  teacherId    String
+  title        String
+  content      String?
+  homework     String?
+  lessonDate   DateTime
+  classGroup   ClassGroup   @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher      User         @relation("TeacherLessons", fields: [teacherId], references: [id])
+  attendance   Attendance[]
+  createdAt    DateTime     @default(now())
+
+  @@index([classGroupId, lessonDate])
+  @@index([teacherId, lessonDate])
+}
+
+model Attendance {
+  id        String           @id @default(cuid())
+  lessonId  String
+  studentId String
+  status    AttendanceStatus @default(PRESENT)
+  note      String?
+  lesson    Lesson           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  student   Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, studentId])
+  @@index([studentId, status])
+}
+
+model Grade {
+  id        String   @id @default(cuid())
+  studentId String
+  subjectId String
+  authorId  String
+  period    String
+  label     String
+  value     Decimal  @db.Decimal(5, 2)
+  maxValue  Decimal  @default(10) @db.Decimal(5, 2)
+  notes     String?
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  author    User     @relation("GradeAuthor", fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([studentId, subjectId, period])
+}
+
+model Announcement {
+  id             String       @id @default(cuid())
+  organizationId String
+  title          String
+  body           String
+  audience       String        @default("ALL")
+  publishedAt    DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, publishedAt])
+}
+
+model Subscription {
+  id             String             @id @default(cuid())
+  organizationId String             @unique
+  plan           String             @default("STARTER")
+  status         SubscriptionStatus @default(TRIAL)
+  seats          Int                @default(20)
+  trialEndsAt    DateTime?
+  currentPeriodEnd DateTime?
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+}
+
+model AuditLog {
+  id             String       @id @default(cuid())
+  organizationId String?
+  userId         String?
+  action         String
+  entity         String
+  entityId       String?
+  metadata       Json?
+  ipAddress      String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+}
