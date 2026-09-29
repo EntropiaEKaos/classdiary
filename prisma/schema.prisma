@@ -49,6 +49,9 @@ model Organization {
   academicEvents AcademicEvent[]
   invitations    Invitation[]
   occurrences    Occurrence[]
+  assignments    Assignment[]
+  documents      AcademicDocument[]
+  councilDecisions CouncilDecision[]
   periodClosures PeriodClosure[]
   subscription  Subscription?
   auditLogs     AuditLog[]
@@ -70,6 +73,11 @@ model User {
   guardianships StudentGuardian[]
   invitationsSent Invitation[] @relation("InvitationSender")
   occurrencesCreated Occurrence[] @relation("OccurrenceAuthor")
+  assignmentsCreated Assignment[] @relation("AssignmentAuthor")
+  submissions AssignmentSubmission[]
+  studentLinks StudentUser[]
+  documentsCreated AcademicDocument[] @relation("DocumentAuthor")
+  councilDecisions CouncilDecision[] @relation("CouncilAuthor")
   auditLogs   AuditLog[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -110,6 +118,7 @@ model SchoolYear {
   active         Boolean      @default(false)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   classGroups    ClassGroup[]
+  councilDecisions CouncilDecision[]
 
   @@unique([organizationId, name])
 }
@@ -127,6 +136,7 @@ model ClassGroup {
   enrollments    Enrollment[]
   classSubjects  ClassSubject[]
   lessons        Lesson[]
+  assignments    Assignment[]
 
   @@unique([organizationId, schoolYearId, name])
   @@index([organizationId, schoolYearId])
@@ -142,6 +152,8 @@ model Subject {
   classSubjects  ClassSubject[]
   lessons        Lesson[]
   grades         Grade[]
+  assignments    Assignment[]
+  recoveryGrades RecoveryGrade[]
 
   @@unique([organizationId, name])
 }
@@ -175,6 +187,11 @@ model Student {
   guardians      StudentGuardian[]
   occurrences    Occurrence[]
   invitations    Invitation[]
+  userLinks       StudentUser[]
+  submissions    AssignmentSubmission[]
+  recoveryGrades RecoveryGrade[]
+  councilDecisions CouncilDecision[]
+  documents      AcademicDocument[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -243,6 +260,107 @@ model Grade {
   createdAt DateTime @default(now())
 
   @@index([studentId, subjectId, period])
+}
+
+model StudentUser {
+  id        String   @id @default(cuid())
+  studentId String
+  userId    String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([studentId, userId])
+  @@index([userId])
+}
+
+model Assignment {
+  id             String       @id @default(cuid())
+  organizationId String
+  classGroupId   String
+  subjectId      String
+  authorId       String
+  title          String
+  description    String?
+  dueAt          DateTime?
+  maxScore       Decimal?     @db.Decimal(5, 2)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  classGroup     ClassGroup   @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  subject        Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  author         User         @relation("AssignmentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  submissions    AssignmentSubmission[]
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, dueAt])
+  @@index([classGroupId, dueAt])
+}
+
+model AssignmentSubmission {
+  id           String      @id @default(cuid())
+  assignmentId String
+  studentId    String
+  userId       String?
+  content      String?
+  fileUrl      String?
+  submittedAt  DateTime    @default(now())
+  score        Decimal?    @db.Decimal(5, 2)
+  feedback     String?
+  assignment   Assignment  @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student      Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  user         User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([assignmentId, studentId])
+  @@index([studentId, submittedAt])
+}
+
+model RecoveryGrade {
+  id        String   @id @default(cuid())
+  studentId String
+  subjectId String
+  period    String
+  value     Decimal  @db.Decimal(5, 2)
+  notes     String?
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([studentId, subjectId, period])
+}
+
+model CouncilDecision {
+  id             String       @id @default(cuid())
+  organizationId String
+  studentId      String
+  authorId       String
+  schoolYearId   String
+  period         String
+  decision       String
+  notes          String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  author         User         @relation("CouncilAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  schoolYear     SchoolYear   @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, schoolYearId, period])
+  @@index([studentId, schoolYearId])
+}
+
+model AcademicDocument {
+  id             String       @id @default(cuid())
+  organizationId String
+  studentId      String
+  authorId       String
+  type           String
+  title          String
+  payload        Json?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  author         User         @relation("DocumentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, type, createdAt])
+  @@index([studentId, createdAt])
 }
 
 model StudentGuardian {
