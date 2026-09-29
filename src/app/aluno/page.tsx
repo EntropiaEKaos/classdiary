@@ -59,6 +59,7 @@ export default async function Page() {
           <Link className="btn btn-light" href="/agenda">Minha agenda</Link>
           <Link className="btn btn-light" href="/mensagens">Mensagens</Link>
           <Link className="btn btn-light" href="/financeiro">Financeiro</Link>
+          <Link className="btn btn-light" href="/pesquisas">Pesquisas</Link>
           <Link className="btn btn-light" href="/notificacoes">Notificações</Link>
         </div>
       </div>
