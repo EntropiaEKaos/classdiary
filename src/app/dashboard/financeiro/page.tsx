@@ -23,7 +23,7 @@ export default async function Page(){
       <div className="top-actions">
         <Link className="btn btn-light" href="/dashboard/financeiro/contratos">Contratos</Link>
         <Link className="btn btn-light" href="/dashboard/financeiro/cobrancas">Cobranças</Link>
-        <Link className="btn btn-light" href="/dashboard/financeiro/configuracoes">Configurações</Link>
+        <Link className="btn btn-light" href="/dashboard/financeiro/dre">DRE</Link><Link className="btn btn-light" href="/dashboard/financeiro/configuracoes">Configurações</Link>
       </div>
     </div>
 
