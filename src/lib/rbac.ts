@@ -34,6 +34,12 @@ const roleDefaults: Record<SchoolRole, Record<string, PermissionAction[]>> = {
     finance: ["view", "create", "update"],
     crm: ["view", "create", "update"],
     messaging: ["view", "create"],
+    assets: ["view", "create", "update"],
+    inventory: ["view", "create", "update"],
+    library: ["view", "create", "update"],
+    transport: ["view", "create", "update"],
+    canteen: ["view", "create", "update"],
+    hr: ["view"],
   },
   GUARDIAN: {
     portal: ["view"],
