@@ -137,6 +137,7 @@ model User {
   active      Boolean      @default(true)
   memberships Membership[]
   sessions     Session[]
+  activeOrganizationSessions Session[] @relation("ActiveOrganizationSession")
   lessons     Lesson[]     @relation("TeacherLessons")
   grades      Grade[]      @relation("GradeAuthor")
   guardianships StudentGuardian[]
@@ -192,6 +193,7 @@ model Session {
   userAgent String?
   ipAddress String?
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeOrganization Organization? @relation("ActiveOrganizationSession", fields: [activeOrganizationId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
 
   @@index([userId, expiresAt])
@@ -397,7 +399,7 @@ model Attendance {
   student   Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([lessonId, studentId])
-  justifications AbsenceJustification[]
+  justification AbsenceJustification?
 
   @@index([studentId, status])
 }
