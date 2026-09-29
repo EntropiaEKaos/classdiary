@@ -315,6 +315,16 @@ export async function requestGradeReviewAction(fd: FormData) {
 
   if (!canRequest) throw new Error("Sem permissão para solicitar revisão desta nota.");
 
+  const pending = await db.gradeReviewRequest.findFirst({
+    where: {
+      gradeId: grade.id,
+      status: "PENDING",
+    },
+  });
+  if (pending) {
+    throw new Error("Já existe uma solicitação de revisão pendente para esta nota.");
+  }
+
   const review = await db.gradeReviewRequest.create({
     data: {
       organizationId: org.id,
@@ -362,27 +372,26 @@ export async function reviewGradeRequestAction(fd: FormData) {
     where: {
       id: p.id,
       organizationId: org.id,
-      grade: {
-        OR: [
-          { authorId: user.id },
-          {
-            student: {
-              organization: {
-                memberships: {
-                  some: {
-                    userId: user.id,
-                    role: { in: ["SCHOOL_ADMIN", "COORDINATOR"] },
-                  },
-                },
-              },
-            },
-          },
-        ],
-      },
+      status: "PENDING",
     },
     include: { grade: true },
   });
   if (!review) throw new Error("Solicitação inválida.");
+
+  const orgRoles = user.memberships
+    .filter((membership) => membership.organizationId === org.id)
+    .map((membership) => membership.role);
+
+  const isAdminReviewer = orgRoles.some((role) =>
+    ["SCHOOL_ADMIN", "COORDINATOR"].includes(role),
+  );
+
+  const isOwningTeacher =
+    orgRoles.includes("TEACHER") && review.grade.authorId === user.id;
+
+  if (!isAdminReviewer && !isOwningTeacher) {
+    throw new Error("Sem permissão para revisar esta solicitação.");
+  }
 
   let proposedValue: number | null = null;
   if (p.decision === "APPROVED" && p.proposedValue) {
