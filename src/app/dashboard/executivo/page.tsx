@@ -7,7 +7,7 @@ export default async function Page(){
   const {org}=await requireSchoolRole(["SCHOOL_ADMIN","COORDINATOR"]);
   const now=new Date();const monthStart=new Date(now.getFullYear(),now.getMonth(),1);const monthEnd=new Date(now.getFullYear(),now.getMonth()+1,1);
 
-  const [students,teachers,employees,alerts,received,expenses,overdue,leads,assets,lowStock,loans,transport,canteen,medicalToday,pendingAuthorizations,maintenanceOpen,maintenanceDue,purchaseOpen]=await Promise.all([
+  const [students,teachers,employees,alerts,received,expenses,overdue,leads,assets,lowStock,loans,transport,canteen,medicalToday,pendingAuthorizations,maintenanceOpen,maintenanceDue,purchaseOpen,surveyScores,activeGoals,achievedGoals]=await Promise.all([
     db.student.count({where:{organizationId:org.id,active:true}}),
     db.membership.count({where:{organizationId:org.id,role:"TEACHER"}}),
     db.employee.count({where:{organizationId:org.id,active:true}}),
@@ -25,7 +25,10 @@ export default async function Page(){
     db.guardianAuthorization.count({where:{organizationId:org.id,status:"PENDING"}}),
     db.maintenanceTicket.count({where:{organizationId:org.id,status:{not:"CLOSED"}}}),
     db.maintenancePlan.count({where:{organizationId:org.id,active:true,nextDueAt:{lte:new Date(Date.now()+7*86400000)}}}),
-    db.purchaseOrder.count({where:{organizationId:org.id,status:{in:["DRAFT","ORDERED"]}}})
+    db.purchaseOrder.count({where:{organizationId:org.id,status:{in:["DRAFT","ORDERED"]}}}),
+    db.surveyResponse.findMany({where:{organizationId:org.id},select:{score:true}}),
+    db.pedagogicalGoal.count({where:{organizationId:org.id,status:"ACTIVE"}}),
+    db.pedagogicalGoal.count({where:{organizationId:org.id,status:"ACHIEVED"}})
   ]);
 
   const academicAlerts=alerts.filter(s=>{
@@ -39,6 +42,8 @@ export default async function Page(){
   const low=lowStock.filter(i=>Number(i.quantity)<=Number(i.minQuantity)).length;
   const income=Number(received._sum.amount??0)+Number(canteen._sum.totalAmount??0);
   const expense=Number(expenses._sum.amount??0);
+  const qualityScores=surveyScores.map(s=>s.score).filter((x):x is number=>x!==null);
+  const nps=qualityScores.length?((qualityScores.filter(x=>x>=9).length-qualityScores.filter(x=>x<=6).length)/qualityScores.length)*100:0;
 
   return <main className="main"><div className="page-head"><div><h1>Visão executiva</h1><div className="muted">Resumo consolidado acadêmico, financeiro e operacional.</div></div></div>
     <div className="dashboard-grid">
@@ -64,6 +69,8 @@ export default async function Page(){
       <div className="table-row"><strong>Chamados de manutenção</strong><span>{maintenanceOpen} abertos</span></div>
       <div className="table-row"><strong>Preventivas próximas (7 dias)</strong><span>{maintenanceDue}</span></div>
       <div className="table-row"><strong>Compras em andamento</strong><span>{purchaseOpen}</span></div>
+      <div className="table-row"><strong>NPS institucional</strong><span>{nps.toFixed(0)}</span></div>
+      <div className="table-row"><strong>Metas pedagógicas</strong><span>{activeGoals} ativas · {achievedGoals} atingidas</span></div>
     </section>
   </main>;
 }
