@@ -163,18 +163,31 @@ export async function transferStudentAction(fd: FormData) {
   if (!student || !target) throw new Error("Aluno ou turma inválida.");
 
   const current = await db.enrollment.findFirst({
-    where: { studentId: student.id, active: true, classGroup: { organizationId: org.id } },
+    where: {
+      studentId: student.id,
+      active: true,
+      classGroup: {
+        organizationId: org.id,
+        schoolYearId: target.schoolYearId,
+      },
+    },
     include: { classGroup: true },
     orderBy: { createdAt: "desc" },
   });
 
   await db.$transaction(async (tx) => {
-    if (current) {
-      await tx.enrollment.update({
-        where: { id: current.id },
-        data: { active: false },
-      });
-    }
+    await tx.enrollment.updateMany({
+      where: {
+        studentId: student.id,
+        active: true,
+        classGroup: {
+          organizationId: org.id,
+          schoolYearId: target.schoolYearId,
+        },
+        NOT: { classGroupId: target.id },
+      },
+      data: { active: false },
+    });
 
     await tx.enrollment.upsert({
       where: {
@@ -238,29 +251,46 @@ export async function reenrollStudentAction(fd: FormData) {
   ]);
   if (!student || !target) throw new Error("Aluno ou turma inválida.");
 
-  const enrollment = await db.enrollment.upsert({
-    where: {
-      studentId_classGroupId: {
+  const { enrollment, movement } = await db.$transaction(async (tx) => {
+    await tx.enrollment.updateMany({
+      where: {
+        studentId: student.id,
+        active: true,
+        classGroup: {
+          organizationId: org.id,
+          schoolYearId: target.schoolYearId,
+        },
+        NOT: { classGroupId: target.id },
+      },
+      data: { active: false },
+    });
+
+    const enrollment = await tx.enrollment.upsert({
+      where: {
+        studentId_classGroupId: {
+          studentId: student.id,
+          classGroupId: target.id,
+        },
+      },
+      update: { active: true },
+      create: {
         studentId: student.id,
         classGroupId: target.id,
+        active: true,
       },
-    },
-    update: { active: true },
-    create: {
-      studentId: student.id,
-      classGroupId: target.id,
-      active: true,
-    },
-  });
+    });
 
-  const movement = await db.academicMovement.create({
-    data: {
-      organizationId: org.id,
-      studentId: student.id,
-      type: "REENROLLMENT",
-      toClassGroupId: target.id,
-      notes: "Rematrícula realizada pela secretaria.",
-    },
+    const movement = await tx.academicMovement.create({
+      data: {
+        organizationId: org.id,
+        studentId: student.id,
+        type: "REENROLLMENT",
+        toClassGroupId: target.id,
+        notes: "Rematrícula realizada pela secretaria.",
+      },
+    });
+
+    return { enrollment, movement };
   });
 
   await db.auditLog.create({
@@ -288,11 +318,36 @@ export async function calculateAnnualResultAction(fd: FormData) {
 
   const student = await db.student.findFirst({
     where: { id: studentId, organizationId: org.id },
-    include: { grades: true, attendance: true },
+    include: {
+      grades: {
+        where: {
+          OR: [
+            { schoolYearId: year.id },
+            {
+              schoolYearId: null,
+              createdAt: {
+                gte: year.startsAt,
+                lte: year.endsAt,
+              },
+            },
+          ],
+        },
+      },
+      attendance: {
+        where: {
+          lesson: {
+            classGroup: {
+              organizationId: org.id,
+              schoolYearId: year.id,
+            },
+          },
+        },
+      },
+    },
   });
   if (!student) throw new Error("Aluno inválido.");
 
-  const weightedGradeTotal = student.grades.reduce(
+  const weightedGradeTotal = student.grades.reduce
     (sum, grade) =>
       sum +
       ((Number(grade.value) / Number(grade.maxValue)) * 10) *
