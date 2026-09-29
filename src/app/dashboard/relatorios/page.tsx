@@ -56,7 +56,10 @@ export default async function Page() {
           <h1>Relatórios e risco acadêmico</h1>
           <div className="muted">Indicadores calculados a partir dos dados reais da escola.</div>
         </div>
-        <Link className="btn btn-light" href="/api/export/alunos">Exportar alunos CSV</Link>
+        <div className="top-actions">
+          <Link className="btn btn-light" href="/dashboard/relatorios-detalhados">Turmas e professores</Link>
+          <Link className="btn btn-light" href="/api/export/alunos">Exportar alunos CSV</Link>
+        </div>
       </div>
 
       <div className="dashboard-grid">
