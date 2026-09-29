@@ -36,6 +36,63 @@ async function requireTeacherAssessmentScope(
   throw new Error("Sem permissão para gerenciar avaliações.");
 }
 
+
+async function postAttemptToGradebook(attemptId: string) {
+  const attempt = await db.examAttempt.findUnique({
+    where: { id: attemptId },
+    include: {
+      exam: {
+        include: {
+          academicPeriod: true,
+          questions: true,
+        },
+      },
+      grade: true,
+    },
+  });
+
+  if (!attempt || attempt.status !== "GRADED" || attempt.grade) return;
+  if (!attempt.exam.postToGradebook) return;
+  if (!attempt.exam.academicPeriod) return;
+
+  const maxValue = attempt.exam.questions.reduce(
+    (sum, question) => sum + Number(question.points),
+    0,
+  );
+  if (maxValue <= 0) return;
+
+  await db.$transaction(async (tx) => {
+    const fresh = await tx.examAttempt.findUnique({
+      where: { id: attempt.id },
+      include: { grade: true },
+    });
+    if (!fresh || fresh.grade || fresh.gradePostedAt) return;
+
+    await tx.grade.create({
+      data: {
+        studentId: attempt.studentId,
+        subjectId: attempt.exam.subjectId,
+        authorId: attempt.exam.authorId,
+        period: attempt.exam.academicPeriod!.name,
+        label: attempt.exam.gradeLabel || attempt.exam.title,
+        value: attempt.finalScore,
+        maxValue,
+        weight: attempt.exam.gradeWeight,
+        notes: "Lançada automaticamente a partir da prova online.",
+        examAttemptId: attempt.id,
+      },
+    });
+
+    await tx.examAttempt.update({
+      where: { id: attempt.id },
+      data: { gradePostedAt: new Date() },
+    });
+  });
+
+  revalidatePath("/dashboard/notas");
+  revalidatePath("/dashboard/boletins");
+}
+
 export async function createQuestionBankItemAction(fd: FormData) {
   const { user, org } = await requireModulePermission("assessments", "create");
 
@@ -127,6 +184,10 @@ export async function createExamAction(fd: FormData) {
     durationMinutes: z.coerce.number().int().min(1).optional(),
     maxAttempts: z.coerce.number().int().min(1).max(10),
     shuffleQuestions: z.boolean(),
+    academicPeriodId: z.string().optional(),
+    postToGradebook: z.boolean(),
+    gradeLabel: z.string().optional(),
+    gradeWeight: z.coerce.number().positive(),
   }).parse({
     classGroupId: String(fd.get("classGroupId") ?? ""),
     subjectId: String(fd.get("subjectId") ?? ""),
@@ -138,6 +199,10 @@ export async function createExamAction(fd: FormData) {
     durationMinutes: fd.get("durationMinutes") || undefined,
     maxAttempts: fd.get("maxAttempts") || 1,
     shuffleQuestions: fd.get("shuffleQuestions") === "on",
+    academicPeriodId: String(fd.get("academicPeriodId") ?? "") || undefined,
+    postToGradebook: fd.get("postToGradebook") === "on",
+    gradeLabel: String(fd.get("gradeLabel") ?? "").trim(),
+    gradeWeight: fd.get("gradeWeight") || 1,
   });
 
   const [group, subject] = await Promise.all([
@@ -150,6 +215,13 @@ export async function createExamAction(fd: FormData) {
   ]);
 
   if (!group || !subject) throw new Error("Turma ou disciplina inválida.");
+
+  if (p.academicPeriodId) {
+    const period = await db.academicPeriod.findFirst({
+      where: { id: p.academicPeriodId, organizationId: org.id, schoolYearId: group.schoolYearId },
+    });
+    if (!period) throw new Error("Período acadêmico inválido para a turma.");
+  }
 
   await requireTeacherAssessmentScope(
     user.id,
@@ -164,6 +236,7 @@ export async function createExamAction(fd: FormData) {
       classGroupId: group.id,
       subjectId: subject.id,
       authorId: user.id,
+      academicPeriodId: p.academicPeriodId || null,
       title: p.title,
       description: p.description || null,
       type: p.type,
@@ -172,6 +245,9 @@ export async function createExamAction(fd: FormData) {
       durationMinutes: p.durationMinutes ?? null,
       maxAttempts: p.maxAttempts,
       shuffleQuestions: p.shuffleQuestions,
+      postToGradebook: p.postToGradebook,
+      gradeLabel: p.gradeLabel || null,
+      gradeWeight: p.gradeWeight,
     },
   });
 
@@ -474,6 +550,10 @@ export async function submitExamAttemptAction(fd: FormData) {
     },
   });
 
+  if (!hasManual) {
+    await postAttemptToGradebook(attempt.id);
+  }
+
   redirect("/provas");
 }
 
@@ -542,14 +622,20 @@ export async function gradeExamAnswerAction(fd: FormData) {
     },
   });
 
+  const finalStatus = pendingEssay === 0 ? "GRADED" : "PENDING_REVIEW";
+
   await db.examAttempt.update({
     where: { id: answer.attemptId },
     data: {
       manualScore,
       finalScore: autoScore + manualScore,
-      status: pendingEssay === 0 ? "GRADED" : "PENDING_REVIEW",
+      status: finalStatus,
     },
   });
+
+  if (finalStatus === "GRADED") {
+    await postAttemptToGradebook(answer.attemptId);
+  }
 
   revalidatePath("/dashboard/correcoes");
 }
@@ -610,4 +696,176 @@ export async function applyRubricAssessmentAction(fd: FormData) {
   });
 
   revalidatePath("/dashboard/rubricas-aplicadas");
+}
+
+
+export async function importQuestionBankCsvAction(fd: FormData) {
+  const { user, org } = await requireModulePermission("assessments", "create");
+  const raw = z.string().min(1).parse(String(fd.get("csv") ?? ""));
+  const lines = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+
+  if (lines.length > 1001) throw new Error("Importação limitada a 1000 questões por vez.");
+
+  let imported = 0;
+
+  for (const row of lines.slice(1)) {
+    const [type, prompt, correctAnswer, difficulty, tagsRaw, maxScoreRaw] =
+      row.split(",").map((value) => value.trim().replace(/^"|"$/g, ""));
+
+    if (!type || !prompt) continue;
+    if (!["MULTIPLE_CHOICE","TRUE_FALSE","SHORT_TEXT","ESSAY"].includes(type)) continue;
+
+    await db.questionBankItem.create({
+      data: {
+        organizationId: org.id,
+        authorId: user.id,
+        type,
+        prompt,
+        correctAnswer: correctAnswer || null,
+        difficulty: ["EASY","MEDIUM","HARD"].includes(difficulty) ? difficulty : "MEDIUM",
+        tags: tagsRaw ? tagsRaw.split("|").map((tag) => tag.trim()).filter(Boolean) : [],
+        maxScore: Number(maxScoreRaw || 1),
+      },
+    });
+    imported += 1;
+  }
+
+  await db.auditLog.create({
+    data: {
+      userId: user.id,
+      organizationId: org.id,
+      action: "IMPORT",
+      entity: "QuestionBankItem",
+      metadata: { imported },
+    },
+  });
+
+  revalidatePath("/dashboard/banco-questoes");
+}
+
+export async function createExamBlueprintAction(fd: FormData) {
+  const { org } = await requireModulePermission("assessments", "create");
+  const p = z.object({
+    name: z.string().min(2),
+    subjectId: z.string().optional(),
+    description: z.string().optional(),
+    competencyId: z.string().min(1),
+    questionType: z.string().optional(),
+    difficulty: z.string().optional(),
+    questionCount: z.coerce.number().int().min(1).max(50),
+    pointsEach: z.coerce.number().positive(),
+  }).parse({
+    name: String(fd.get("name") ?? "").trim(),
+    subjectId: String(fd.get("subjectId") ?? "") || undefined,
+    description: String(fd.get("description") ?? "").trim(),
+    competencyId: String(fd.get("competencyId") ?? ""),
+    questionType: String(fd.get("questionType") ?? "") || undefined,
+    difficulty: String(fd.get("difficulty") ?? "") || undefined,
+    questionCount: fd.get("questionCount") || 5,
+    pointsEach: fd.get("pointsEach") || 1,
+  });
+
+  const competency = await db.curriculumCompetency.findFirst({
+    where: { id: p.competencyId, organizationId: org.id },
+  });
+  if (!competency) throw new Error("Competência inválida.");
+
+  await db.examBlueprint.create({
+    data: {
+      organizationId: org.id,
+      subjectId: p.subjectId || null,
+      name: p.name,
+      description: p.description || null,
+      components: {
+        create: {
+          competencyId: competency.id,
+          questionType: p.questionType || null,
+          difficulty: p.difficulty || null,
+          questionCount: p.questionCount,
+          pointsEach: p.pointsEach,
+        },
+      },
+    },
+  });
+
+  revalidatePath("/dashboard/blueprints");
+}
+
+export async function generateExamFromBlueprintAction(fd: FormData) {
+  const { user, org } = await requireModulePermission("assessments", "create");
+  const p = z.object({
+    blueprintId: z.string().min(1),
+    classGroupId: z.string().min(1),
+    subjectId: z.string().min(1),
+    academicPeriodId: z.string().optional(),
+    title: z.string().min(2),
+  }).parse({
+    blueprintId: String(fd.get("blueprintId") ?? ""),
+    classGroupId: String(fd.get("classGroupId") ?? ""),
+    subjectId: String(fd.get("subjectId") ?? ""),
+    academicPeriodId: String(fd.get("academicPeriodId") ?? "") || undefined,
+    title: String(fd.get("title") ?? "").trim(),
+  });
+
+  await requireTeacherAssessmentScope(user.id, org.id, p.classGroupId, p.subjectId);
+
+  const blueprint = await db.examBlueprint.findFirst({
+    where: { id: p.blueprintId, organizationId: org.id, active: true },
+    include: { components: true },
+  });
+  if (!blueprint) throw new Error("Blueprint inválido.");
+
+  const selected: { questionId: string; points: number; competencyId: string }[] = [];
+
+  for (const component of blueprint.components) {
+    const questions = await db.questionBankItem.findMany({
+      where: {
+        organizationId: org.id,
+        active: true,
+        OR: [{ subjectId: p.subjectId }, { subjectId: null }],
+        ...(component.questionType ? { type: component.questionType } : {}),
+        ...(component.difficulty ? { difficulty: component.difficulty } : {}),
+        competencies: { some: { competencyId: component.competencyId } },
+      },
+      take: component.questionCount,
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (questions.length < component.questionCount) {
+      throw new Error("Banco insuficiente para um dos componentes do blueprint.");
+    }
+
+    for (const question of questions) {
+      selected.push({
+        questionId: question.id,
+        points: Number(component.pointsEach),
+        competencyId: component.competencyId,
+      });
+    }
+  }
+
+  const exam = await db.exam.create({
+    data: {
+      organizationId: org.id,
+      classGroupId: p.classGroupId,
+      subjectId: p.subjectId,
+      authorId: user.id,
+      academicPeriodId: p.academicPeriodId || null,
+      title: p.title,
+      type: "EXAM",
+      postToGradebook: true,
+      gradeLabel: p.title,
+      questions: {
+        create: selected.map((item, index) => ({
+          questionId: item.questionId,
+          position: index + 1,
+          points: item.points,
+          competencies: { create: { competencyId: item.competencyId } },
+        })),
+      },
+    },
+  });
+
+  revalidatePath("/dashboard/provas");
+  return exam.id;
 }
