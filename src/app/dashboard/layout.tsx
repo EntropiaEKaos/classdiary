@@ -37,7 +37,6 @@ export default async function Layout({ children }: { children: React.ReactNode }
                 <select
                   name="organizationId"
                   defaultValue={org?.id}
-                  onChange={(event) => event.currentTarget.form?.requestSubmit()}
                   aria-label="Selecionar escola"
                 >
                   {organizations.map((organization) => (
@@ -46,6 +45,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
                     </option>
                   ))}
                 </select>
+                <button className="btn btn-light" type="submit">Trocar</button>
               </form>
             ) : null}
 
