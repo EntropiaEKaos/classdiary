@@ -80,6 +80,18 @@ model Organization {
   documentTemplates DocumentTemplate[]
   permissionOverrides PermissionOverride[]
   collectionRules CollectionRule[]
+  employees Employee[]
+  timeEntries TimeEntry[]
+  assets Asset[]
+  inventoryItems InventoryItem[]
+  inventoryMovements InventoryMovement[]
+  libraryBooks LibraryBook[]
+  libraryLoans LibraryLoan[]
+  transportRoutes TransportRoute[]
+  transportStops TransportStop[]
+  transportAssignments TransportAssignment[]
+  canteenItems CanteenItem[]
+  canteenOrders CanteenOrder[]
   subscription  Subscription?
   auditLogs     AuditLog[]
   createdAt     DateTime       @default(now())
@@ -106,6 +118,8 @@ model User {
   documentsCreated AcademicDocument[] @relation("DocumentAuthor")
   councilDecisions CouncilDecision[] @relation("CouncilAuthor")
   timetableEntries TimetableEntry[] @relation("TimetableTeacher")
+  classSubjects ClassSubject[] @relation("ClassSubjectTeacher")
+  employees Employee[] @relation("EmployeeUser")
   conversationParticipants ConversationParticipant[]
   sentMessages Message[] @relation("MessageSender")
   notifications Notification[]
@@ -210,6 +224,7 @@ model ClassSubject {
   teacherId    String?
   classGroup   ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
   subject      Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher      User?      @relation("ClassSubjectTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
 
   @@unique([classGroupId, subjectId])
   @@index([teacherId])
@@ -259,6 +274,9 @@ model Student {
   contractAcceptances ContractAcceptance[]
   absenceJustifications AbsenceJustification[]
   gradeReviewRequests GradeReviewRequest[]
+  libraryLoans LibraryLoan[]
+  transportAssignments TransportAssignment[]
+  canteenOrders CanteenOrder[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -706,6 +724,233 @@ model CollectionRule {
   updatedAt      DateTime     @updatedAt
 
   @@index([organizationId, active])
+}
+
+model Employee {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String?
+  name           String
+  email          String?
+  phone          String?
+  document       String?
+  jobTitle       String
+  department     String?
+  hireDate       DateTime?
+  salary         Decimal?     @db.Decimal(10, 2)
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?        @relation("EmployeeUser", fields: [userId], references: [id], onDelete: SetNull)
+  timeEntries    TimeEntry[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, active])
+  @@index([organizationId, department])
+}
+
+model TimeEntry {
+  id             String       @id @default(cuid())
+  organizationId String
+  employeeId     String
+  clockIn        DateTime
+  clockOut       DateTime?
+  breakMinutes   Int          @default(0)
+  notes          String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, clockIn])
+  @@index([employeeId, clockIn])
+}
+
+model Asset {
+  id             String       @id @default(cuid())
+  organizationId String
+  tag            String
+  name           String
+  category       String
+  serialNumber   String?
+  acquisitionDate DateTime?
+  acquisitionValue Decimal?   @db.Decimal(10, 2)
+  location       String?
+  status         String       @default("ACTIVE")
+  notes          String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, tag])
+  @@index([organizationId, category, status])
+}
+
+model InventoryItem {
+  id             String       @id @default(cuid())
+  organizationId String
+  sku            String
+  name           String
+  category       String?
+  unit           String       @default("UN")
+  quantity       Decimal      @default(0) @db.Decimal(12, 3)
+  minQuantity    Decimal      @default(0) @db.Decimal(12, 3)
+  averageCost    Decimal      @default(0) @db.Decimal(10, 2)
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  movements      InventoryMovement[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, sku])
+  @@index([organizationId, category, active])
+}
+
+model InventoryMovement {
+  id             String       @id @default(cuid())
+  organizationId String
+  itemId         String
+  type           String
+  quantity       Decimal      @db.Decimal(12, 3)
+  unitCost       Decimal?     @db.Decimal(10, 2)
+  reason         String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  item           InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([itemId, createdAt])
+}
+
+model LibraryBook {
+  id             String       @id @default(cuid())
+  organizationId String
+  code           String
+  title          String
+  author         String?
+  isbn           String?
+  category       String?
+  copiesTotal    Int          @default(1)
+  copiesAvailable Int         @default(1)
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  loans          LibraryLoan[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, title])
+}
+
+model LibraryLoan {
+  id             String       @id @default(cuid())
+  organizationId String
+  bookId         String
+  studentId      String
+  borrowedAt     DateTime     @default(now())
+  dueAt          DateTime
+  returnedAt     DateTime?
+  status         String       @default("BORROWED")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  book           LibraryBook  @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, dueAt])
+  @@index([studentId, borrowedAt])
+}
+
+model TransportRoute {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  vehiclePlate   String?
+  driverName     String?
+  driverPhone    String?
+  capacity       Int?
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stops          TransportStop[]
+  assignments    TransportAssignment[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, active])
+}
+
+model TransportStop {
+  id             String       @id @default(cuid())
+  organizationId String
+  routeId        String
+  name           String
+  address        String?
+  pickupTime     String?
+  dropoffTime    String?
+  position       Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  route          TransportRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  assignments    TransportAssignment[]
+
+  @@unique([routeId, position])
+}
+
+model TransportAssignment {
+  id             String       @id @default(cuid())
+  organizationId String
+  routeId        String
+  stopId         String?
+  studentId      String
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  route          TransportRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  stop           TransportStop? @relation(fields: [stopId], references: [id], onDelete: SetNull)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([routeId, studentId])
+  @@index([studentId, active])
+}
+
+model CanteenItem {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  category       String?
+  price          Decimal      @db.Decimal(10, 2)
+  stockQuantity  Decimal      @default(0) @db.Decimal(12, 3)
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  orderItems     CanteenOrderItem[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, active, category])
+}
+
+model CanteenOrder {
+  id             String       @id @default(cuid())
+  organizationId String
+  studentId      String?
+  status         String       @default("OPEN")
+  totalAmount    Decimal      @default(0) @db.Decimal(10, 2)
+  paymentMethod  String?
+  paidAt         DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  items          CanteenOrderItem[]
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, status, createdAt])
+}
+
+model CanteenOrderItem {
+  id        String       @id @default(cuid())
+  orderId   String
+  itemId    String
+  quantity  Decimal      @db.Decimal(12, 3)
+  unitPrice Decimal      @db.Decimal(10, 2)
+  order     CanteenOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  item      CanteenItem  @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
 }
 
 model ContractAcceptance {
