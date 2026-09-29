@@ -105,6 +105,14 @@ model Organization {
   surveyResponses SurveyResponse[]
   pedagogicalGoals PedagogicalGoal[]
   assistantQueries AssistantQueryLog[]
+  curriculumFrameworks CurriculumFramework[]
+  curriculumCompetencies CurriculumCompetency[]
+  curriculumMatrices CurriculumMatrix[]
+  rubrics Rubric[]
+  lessonPlans LessonPlan[]
+  pedagogicalInterventions PedagogicalIntervention[]
+  competencyAssessments CompetencyAssessment[]
+  pedagogicalObservations PedagogicalObservation[]
   subscription  Subscription?
   auditLogs     AuditLog[]
   createdAt     DateTime       @default(now())
@@ -149,6 +157,11 @@ model User {
   surveysCreated Survey[] @relation("SurveyCreator")
   pedagogicalGoalsCreated PedagogicalGoal[] @relation("PedagogicalGoalCreator")
   assistantQueries AssistantQueryLog[]
+  rubricsCreated Rubric[] @relation("RubricCreator")
+  lessonPlansCreated LessonPlan[] @relation("LessonPlanCreator")
+  interventionsCreated PedagogicalIntervention[] @relation("InterventionCreator")
+  competencyAssessmentsCreated CompetencyAssessment[] @relation("CompetencyAssessmentAuthor")
+  observationsCreated PedagogicalObservation[] @relation("PedagogicalObservationAuthor")
   auditLogs   AuditLog[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -192,6 +205,7 @@ model SchoolYear {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   classGroups    ClassGroup[]
   academicPeriods AcademicPeriod[]
+  periodClosures PeriodClosure[]
   councilDecisions CouncilDecision[]
   annualResults AnnualResult[]
 
@@ -215,6 +229,9 @@ model ClassGroup {
   timetableEntries TimetableEntry[]
   movementsFrom AcademicMovement[] @relation("MovementFromClass")
   movementsTo AcademicMovement[] @relation("MovementToClass")
+  lessonPlans LessonPlan[]
+  pedagogicalInterventions PedagogicalIntervention[]
+  competencyAssessments CompetencyAssessment[]
 
   @@unique([organizationId, schoolYearId, name])
   @@index([organizationId, schoolYearId])
@@ -233,6 +250,10 @@ model Subject {
   assignments    Assignment[]
   recoveryGrades RecoveryGrade[]
   timetableEntries TimetableEntry[]
+  curriculumMatrixSubjects CurriculumMatrixSubject[]
+  rubrics Rubric[]
+  lessonPlans LessonPlan[]
+  competencyAssessments CompetencyAssessment[]
 
   @@unique([organizationId, name])
 }
@@ -299,6 +320,9 @@ model Student {
   canteenOrders CanteenOrder[]
   medicalRecords MedicalRecord[]
   guardianAuthorizations GuardianAuthorization[]
+  pedagogicalInterventions PedagogicalIntervention[]
+  competencyAssessments CompetencyAssessment[]
+  pedagogicalObservations PedagogicalObservation[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -331,6 +355,7 @@ model Lesson {
   subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   teacher      User         @relation("TeacherLessons", fields: [teacherId], references: [id])
   attendance   Attendance[]
+  lessonPlan    LessonPlan?
   createdAt    DateTime     @default(now())
 
   @@index([classGroupId, lessonDate])
@@ -1133,6 +1158,210 @@ model AutomationRule {
   updatedAt      DateTime     @updatedAt
 
   @@index([organizationId, active, event])
+}
+
+model CurriculumFramework {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  version        String?
+  source         String?
+  description    String?
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  competencies   CurriculumCompetency[]
+  matrices       CurriculumMatrix[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, name])
+}
+
+model CurriculumCompetency {
+  id             String       @id @default(cuid())
+  organizationId String
+  frameworkId    String
+  code           String
+  title          String
+  description    String?
+  gradeLevel     String?
+  subjectArea    String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  framework      CurriculumFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  rubricCriteria RubricCriterionCompetency[]
+  assessments    CompetencyAssessment[]
+  lessonPlans    LessonPlanCompetency[]
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, frameworkId, code])
+  @@index([organizationId, gradeLevel, subjectArea])
+}
+
+model CurriculumMatrix {
+  id             String       @id @default(cuid())
+  organizationId String
+  frameworkId    String
+  name           String
+  gradeLevel     String
+  weeklyHours    Int?
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  framework      CurriculumFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  subjects       CurriculumMatrixSubject[]
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, name, gradeLevel])
+}
+
+model CurriculumMatrixSubject {
+  id             String       @id @default(cuid())
+  matrixId       String
+  subjectId      String
+  weeklyHours    Int
+  annualHours    Int?
+  matrix         CurriculumMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
+  subject        Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([matrixId, subjectId])
+}
+
+model Rubric {
+  id             String       @id @default(cuid())
+  organizationId String
+  subjectId      String?
+  createdById    String
+  name           String
+  description    String?
+  maxScore       Decimal      @default(10) @db.Decimal(5, 2)
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subject        Subject?     @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  createdBy      User         @relation("RubricCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  criteria       RubricCriterion[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, subjectId, active])
+}
+
+model RubricCriterion {
+  id          String    @id @default(cuid())
+  rubricId    String
+  title       String
+  description String?
+  weight      Decimal   @default(1) @db.Decimal(5, 2)
+  rubric      Rubric    @relation(fields: [rubricId], references: [id], onDelete: Cascade)
+  competencies RubricCriterionCompetency[]
+
+  @@index([rubricId])
+}
+
+model RubricCriterionCompetency {
+  criterionId  String
+  competencyId String
+  criterion    RubricCriterion      @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  competency   CurriculumCompetency @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+
+  @@id([criterionId, competencyId])
+}
+
+model LessonPlan {
+  id             String       @id @default(cuid())
+  organizationId String
+  classGroupId   String
+  subjectId      String
+  createdById    String
+  lessonId       String?      @unique
+  title          String
+  objectives     String
+  methodology    String?
+  resources      String?
+  assessment     String?
+  plannedDate    DateTime
+  status         String       @default("PLANNED")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  classGroup     ClassGroup   @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  subject        Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  createdBy      User         @relation("LessonPlanCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  lesson         Lesson?      @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  competencies   LessonPlanCompetency[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, plannedDate])
+  @@index([classGroupId, plannedDate])
+}
+
+model LessonPlanCompetency {
+  lessonPlanId  String
+  competencyId  String
+  lessonPlan    LessonPlan            @relation(fields: [lessonPlanId], references: [id], onDelete: Cascade)
+  competency    CurriculumCompetency  @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+
+  @@id([lessonPlanId, competencyId])
+}
+
+model PedagogicalIntervention {
+  id             String       @id @default(cuid())
+  organizationId String
+  studentId      String
+  classGroupId   String?
+  createdById    String
+  reason         String
+  plan           String
+  startsAt       DateTime     @default(now())
+  endsAt         DateTime?
+  status         String       @default("ACTIVE")
+  outcome        String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classGroup     ClassGroup?  @relation(fields: [classGroupId], references: [id], onDelete: SetNull)
+  createdBy      User         @relation("InterventionCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, status, startsAt])
+  @@index([studentId, status])
+}
+
+model CompetencyAssessment {
+  id             String       @id @default(cuid())
+  organizationId String
+  studentId      String
+  competencyId   String
+  subjectId      String?
+  classGroupId   String?
+  authorId       String
+  level          String
+  score          Decimal?     @db.Decimal(5, 2)
+  evidence       String?
+  assessedAt     DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  competency     CurriculumCompetency @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+  subject        Subject?     @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  classGroup     ClassGroup?  @relation(fields: [classGroupId], references: [id], onDelete: SetNull)
+  author         User         @relation("CompetencyAssessmentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, assessedAt])
+  @@index([studentId, competencyId, assessedAt])
+}
+
+model PedagogicalObservation {
+  id             String       @id @default(cuid())
+  organizationId String
+  studentId      String
+  authorId       String
+  category       String
+  note           String
+  visibility     String       @default("STAFF")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  author         User         @relation("PedagogicalObservationAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([studentId, createdAt])
+  @@index([organizationId, category])
 }
 
 model Survey {
