@@ -22,7 +22,7 @@ export default async function Page() {
           attendance: {
             include: {
               lesson: { include: { subject: true, classGroup: true } },
-              justifications: true,
+              justification: true,
             },
             orderBy: { lesson: { lessonDate: "desc" } },
           },
@@ -94,7 +94,7 @@ export default async function Page() {
       <section className="table-card" style={{ marginTop: 16 }}>
         <h3>Faltas</h3>
         {absences.length === 0 ? <p className="muted">Nenhuma falta pendente.</p> : absences.map((absence) => {
-          const justification = absence.justifications[0];
+          const justification = absence.justification;
           return (
             <div className="notice" key={absence.id}>
               <strong>{absence.lesson.subject.name} · {absence.lesson.classGroup.name}</strong>
