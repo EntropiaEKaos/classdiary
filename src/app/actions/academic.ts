@@ -57,6 +57,8 @@ export async function createGradeAction(fd:FormData){
   const {user,org}=await ctx();
   const p=z.object({studentId:z.string().min(1),subjectId:z.string().min(1),period:z.string().min(1),label:z.string().min(1),value:z.coerce.number().min(0).max(100),maxValue:z.coerce.number().positive().max(100),weight:z.coerce.number().positive().max(100)}).parse({studentId:String(fd.get("studentId")??""),subjectId:String(fd.get("subjectId")??""),period:String(fd.get("period")??"").trim(),label:String(fd.get("label")??"").trim(),value:fd.get("value"),maxValue:fd.get("maxValue")||10,weight:fd.get("weight")||1});
   const student=await db.student.findFirst({where:{id:p.studentId,organizationId:org.id}});if(!student)throw new Error("Aluno inválido");
+  const year=await db.schoolYear.findFirst({where:{organizationId:org.id,active:true}});
+  if(year&&await db.periodClosure.findUnique({where:{organizationId_schoolYearId_period:{organizationId:org.id,schoolYearId:year.id,period:p.period}}})) throw new Error("Este período já está fechado para lançamento de notas");
   const grade=await db.grade.create({data:{...p,authorId:user.id}});
   await db.auditLog.create({data:{userId:user.id,organizationId:org.id,action:"CREATE",entity:"Grade",entityId:grade.id}});
   revalidatePath("/dashboard/notas");
