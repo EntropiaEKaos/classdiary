@@ -92,6 +92,15 @@ model Organization {
   transportAssignments TransportAssignment[]
   canteenItems CanteenItem[]
   canteenOrders CanteenOrder[]
+  medicalRecords MedicalRecord[]
+  guardianAuthorizations GuardianAuthorization[]
+  resources Resource[]
+  reservations ResourceReservation[]
+  maintenancePlans MaintenancePlan[]
+  maintenanceTickets MaintenanceTicket[]
+  suppliers Supplier[]
+  purchaseOrders PurchaseOrder[]
+  automationRules AutomationRule[]
   subscription  Subscription?
   auditLogs     AuditLog[]
   createdAt     DateTime       @default(now())
@@ -129,6 +138,10 @@ model User {
   gradeReviewRequestsReviewed GradeReviewRequest[] @relation("GradeReviewReviewer")
   leadInteractions LeadInteraction[] @relation("LeadInteractionAuthor")
   fileAssetsUploaded FileAsset[] @relation("FileAssetUploader")
+  medicalRecordsCreated MedicalRecord[] @relation("MedicalRecordAuthor")
+  reservationsCreated ResourceReservation[] @relation("ReservationCreator")
+  maintenanceTicketsCreated MaintenanceTicket[] @relation("MaintenanceTicketCreator")
+  purchaseOrdersCreated PurchaseOrder[] @relation("PurchaseOrderCreator")
   auditLogs   AuditLog[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -277,6 +290,8 @@ model Student {
   libraryLoans LibraryLoan[]
   transportAssignments TransportAssignment[]
   canteenOrders CanteenOrder[]
+  medicalRecords MedicalRecord[]
+  guardianAuthorizations GuardianAuthorization[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -778,6 +793,8 @@ model Asset {
   status         String       @default("ACTIVE")
   notes          String?
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  maintenancePlans MaintenancePlan[]
+  maintenanceTickets MaintenanceTicket[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -951,6 +968,164 @@ model CanteenOrderItem {
   item      CanteenItem  @relation(fields: [itemId], references: [id], onDelete: Restrict)
 
   @@index([orderId])
+}
+
+model MedicalRecord {
+  id             String       @id @default(cuid())
+  organizationId String
+  studentId      String
+  authorId       String
+  type           String
+  summary        String
+  details        String?
+  actionTaken    String?
+  occurredAt     DateTime     @default(now())
+  notifiedGuardian Boolean    @default(false)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  author         User         @relation("MedicalRecordAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, occurredAt])
+  @@index([studentId, occurredAt])
+}
+
+model GuardianAuthorization {
+  id             String       @id @default(cuid())
+  organizationId String
+  studentId      String
+  type           String
+  title          String
+  description    String?
+  status         String       @default("PENDING")
+  requestedAt    DateTime     @default(now())
+  expiresAt      DateTime?
+  answeredAt     DateTime?
+  answeredByName String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, requestedAt])
+  @@index([studentId, status])
+}
+
+model Resource {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  type           String
+  capacity       Int?
+  location       String?
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reservations   ResourceReservation[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, name])
+}
+
+model ResourceReservation {
+  id             String       @id @default(cuid())
+  organizationId String
+  resourceId     String
+  createdById    String
+  title          String
+  startsAt       DateTime
+  endsAt         DateTime
+  notes          String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  resource       Resource     @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  createdBy      User         @relation("ReservationCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, startsAt])
+  @@index([resourceId, startsAt])
+}
+
+model MaintenancePlan {
+  id             String       @id @default(cuid())
+  organizationId String
+  assetId        String
+  name           String
+  frequencyDays  Int
+  nextDueAt      DateTime
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  asset          Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, nextDueAt, active])
+}
+
+model MaintenanceTicket {
+  id             String       @id @default(cuid())
+  organizationId String
+  assetId        String?
+  createdById    String
+  title          String
+  description    String
+  priority       String       @default("MEDIUM")
+  status         String       @default("OPEN")
+  openedAt       DateTime     @default(now())
+  closedAt       DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  asset          Asset?       @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  createdBy      User         @relation("MaintenanceTicketCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, priority])
+}
+
+model Supplier {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  document       String?
+  email          String?
+  phone          String?
+  category       String?
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  purchaseOrders PurchaseOrder[]
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, active, category])
+}
+
+model PurchaseOrder {
+  id             String       @id @default(cuid())
+  organizationId String
+  supplierId     String?
+  createdById    String
+  number         String
+  description    String
+  totalAmount    Decimal      @default(0) @db.Decimal(10, 2)
+  status         String       @default("DRAFT")
+  orderedAt      DateTime?
+  receivedAt     DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  supplier       Supplier?    @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  createdBy      User         @relation("PurchaseOrderCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, number])
+  @@index([organizationId, status, createdAt])
+}
+
+model AutomationRule {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  event          String
+  action         String
+  configuration  Json?
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, active, event])
 }
 
 model ContractAcceptance {
