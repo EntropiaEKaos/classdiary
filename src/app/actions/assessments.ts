@@ -41,19 +41,19 @@ async function postAttemptToGradebook(attemptId: string) {
   const attempt = await db.examAttempt.findUnique({
     where: { id: attemptId },
     include: {
+      organization: true,
       exam: {
         include: {
           academicPeriod: true,
           questions: true,
+          recoveryTargetCases: true,
         },
       },
       grade: true,
     },
   });
 
-  if (!attempt || attempt.status !== "GRADED" || attempt.grade) return;
-  if (!attempt.exam.postToGradebook) return;
-  if (!attempt.exam.academicPeriod) return;
+  if (!attempt || attempt.status !== "GRADED") return;
 
   const maxValue = attempt.exam.questions.reduce(
     (sum, question) => sum + Number(question.points),
@@ -61,10 +61,56 @@ async function postAttemptToGradebook(attemptId: string) {
   );
   if (maxValue <= 0) return;
 
+  const normalized10 = (Number(attempt.finalScore) / maxValue) * 10;
+  const percent = (Number(attempt.finalScore) / maxValue) * 100;
+
+  const recoveryCase = attempt.exam.recoveryTargetCases.find(
+    (item) => item.studentId === attempt.studentId && item.status !== "COMPLETED",
+  );
+
+  if (recoveryCase) {
+    if (!attempt.exam.academicPeriod) return;
+
+    await db.$transaction(async (tx) => {
+      const existing = await tx.recoveryGrade.findFirst({
+        where: {
+          studentId: attempt.studentId,
+          subjectId: attempt.exam.subjectId,
+          period: attempt.exam.academicPeriod!.name,
+          notes: { contains: recoveryCase.id },
+        },
+      });
+
+      if (!existing) {
+        await tx.recoveryGrade.create({
+          data: {
+            studentId: attempt.studentId,
+            subjectId: attempt.exam.subjectId,
+            period: attempt.exam.academicPeriod!.name,
+            value: normalized10,
+            notes: `Recuperação automática do caso ${recoveryCase.id}`,
+          },
+        });
+      }
+
+      await tx.examRecoveryCase.update({
+        where: { id: recoveryCase.id },
+        data: { status: "COMPLETED", completedAt: new Date() },
+      });
+    });
+
+    revalidatePath("/dashboard/recuperacoes-avaliacoes");
+    revalidatePath("/dashboard/boletins");
+    return;
+  }
+
+  if (!attempt.exam.postToGradebook) return;
+  if (!attempt.exam.academicPeriod) return;
+
   await db.$transaction(async (tx) => {
     const fresh = await tx.examAttempt.findUnique({
       where: { id: attempt.id },
-      include: { grade: true },
+      include: { grade: true, recoveryCase: true },
     });
     if (!fresh || fresh.grade || fresh.gradePostedAt) return;
 
@@ -87,10 +133,27 @@ async function postAttemptToGradebook(attemptId: string) {
       where: { id: attempt.id },
       data: { gradePostedAt: new Date() },
     });
+
+    if (
+      normalized10 < Number(attempt.organization.passingGrade) &&
+      !fresh.recoveryCase
+    ) {
+      await tx.examRecoveryCase.create({
+        data: {
+          organizationId: attempt.organizationId,
+          studentId: attempt.studentId,
+          originalExamId: attempt.examId,
+          originalAttemptId: attempt.id,
+          threshold: Number(attempt.organization.passingGrade) * 10,
+          originalPercent: percent,
+        },
+      });
+    }
   });
 
   revalidatePath("/dashboard/notas");
   revalidatePath("/dashboard/boletins");
+  revalidatePath("/dashboard/recuperacoes-avaliacoes");
 }
 
 export async function createQuestionBankItemAction(fd: FormData) {
@@ -433,6 +496,16 @@ export async function startExamAttemptAction(fd: FormData) {
       OR: [{ startsAt: null }, { startsAt: { lte: new Date() } }],
       AND: [{ OR: [{ endsAt: null }, { endsAt: { gte: new Date() } }] }],
     },
+    include: {
+      questions: { orderBy: { position: "asc" } },
+      attemptAllowances: {
+        where: {
+          studentId: link.studentId,
+          active: true,
+          OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }],
+        },
+      },
+    },
   });
   if (!exam) throw new Error("Prova indisponível.");
 
@@ -440,8 +513,32 @@ export async function startExamAttemptAction(fd: FormData) {
     where: { examId: exam.id, studentId: link.studentId },
   });
 
-  if (attempts >= exam.maxAttempts) {
+  const extraAttempts = exam.attemptAllowances.reduce(
+    (sum, allowance) => sum + allowance.extraAttempts,
+    0,
+  );
+  const allowedAttempts = (exam.restrictedAccess ? 0 : exam.maxAttempts) + extraAttempts;
+
+  if (allowedAttempts <= 0) {
+    throw new Error("Esta avaliação exige autorização individual.");
+  }
+
+  if (attempts >= allowedAttempts) {
     throw new Error("Limite de tentativas atingido.");
+  }
+
+  const variantCodes = ["A", "B", "C"];
+  const variantCode = variantCodes[attempts % variantCodes.length];
+  let order = exam.questions.map((question) => question.id);
+
+  if (variantCode === "B" && order.length > 1) {
+    order = [...order.slice(1), order[0]];
+  } else if (variantCode === "C" && order.length > 2) {
+    order = [...order.slice(2), ...order.slice(0, 2)];
+  }
+
+  if (exam.shuffleQuestions) {
+    order = [...order].sort(() => Math.random() - 0.5);
   }
 
   const attempt = await db.examAttempt.create({
@@ -449,6 +546,8 @@ export async function startExamAttemptAction(fd: FormData) {
       organizationId: org.id,
       examId: exam.id,
       studentId: link.studentId,
+      variantCode,
+      questionOrder: order,
     },
   });
 
@@ -871,4 +970,268 @@ export async function generateExamFromBlueprintAction(fd: FormData) {
 
   revalidatePath("/dashboard/provas");
   return exam.id;
+}
+
+
+export async function grantExamAttemptAllowanceAction(fd: FormData) {
+  const { user, org } = await requireModulePermission("assessments", "update");
+  const p = z.object({
+    examId: z.string().min(1),
+    studentId: z.string().min(1),
+    type: z.enum(["SECOND_CALL", "SUBSTITUTE", "EXTRA_ATTEMPT"]),
+    extraAttempts: z.coerce.number().int().min(1).max(3),
+    reason: z.string().min(2),
+    validUntil: z.string().optional(),
+  }).parse({
+    examId: String(fd.get("examId") ?? ""),
+    studentId: String(fd.get("studentId") ?? ""),
+    type: String(fd.get("type") ?? "SECOND_CALL"),
+    extraAttempts: fd.get("extraAttempts") || 1,
+    reason: String(fd.get("reason") ?? "").trim(),
+    validUntil: String(fd.get("validUntil") ?? ""),
+  });
+
+  const [exam, student] = await Promise.all([
+    db.exam.findFirst({ where: { id: p.examId, organizationId: org.id } }),
+    db.student.findFirst({ where: { id: p.studentId, organizationId: org.id } }),
+  ]);
+  if (!exam || !student) throw new Error("Prova ou aluno inválido.");
+
+  await requireTeacherAssessmentScope(
+    user.id,
+    org.id,
+    exam.classGroupId,
+    exam.subjectId,
+  );
+
+  await db.examAttemptAllowance.create({
+    data: {
+      organizationId: org.id,
+      examId: exam.id,
+      studentId: student.id,
+      grantedById: user.id,
+      type: p.type,
+      extraAttempts: p.extraAttempts,
+      reason: p.reason,
+      validUntil: p.validUntil ? new Date(p.validUntil) : null,
+    },
+  });
+
+  revalidatePath("/dashboard/segunda-chamada");
+}
+
+export async function generateRecoveryExamAction(fd: FormData) {
+  const { user, org } = await requireModulePermission("assessments", "update");
+  const recoveryCaseId = z.string().min(1).parse(String(fd.get("caseId") ?? ""));
+
+  const recoveryCase = await db.examRecoveryCase.findFirst({
+    where: { id: recoveryCaseId, organizationId: org.id, status: "ELIGIBLE" },
+    include: {
+      originalExam: {
+        include: {
+          questions: {
+            include: { competencies: true },
+            orderBy: { position: "asc" },
+          },
+        },
+      },
+    },
+  });
+  if (!recoveryCase) throw new Error("Caso de recuperação inválido.");
+
+  const original = recoveryCase.originalExam;
+
+  await requireTeacherAssessmentScope(
+    user.id,
+    org.id,
+    original.classGroupId,
+    original.subjectId,
+  );
+
+  const exam = await db.$transaction(async (tx) => {
+    const created = await tx.exam.create({
+      data: {
+        organizationId: org.id,
+        classGroupId: original.classGroupId,
+        subjectId: original.subjectId,
+        authorId: user.id,
+        academicPeriodId: original.academicPeriodId,
+        title: "Recuperação · " + original.title,
+        description: "Avaliação de recuperação individual.",
+        type: "RECOVERY",
+        durationMinutes: original.durationMinutes,
+        maxAttempts: 1,
+        shuffleQuestions: true,
+        restrictedAccess: true,
+        postToGradebook: false,
+        gradeLabel: "Recuperação · " + (original.gradeLabel || original.title),
+        published: true,
+        questions: {
+          create: original.questions.map((item, index) => ({
+            questionId: item.questionId,
+            position: index + 1,
+            points: item.points,
+            competencies: {
+              create: item.competencies.map((link) => ({
+                competencyId: link.competencyId,
+              })),
+            },
+          })),
+        },
+      },
+    });
+
+    await tx.examAttemptAllowance.create({
+      data: {
+        organizationId: org.id,
+        examId: created.id,
+        studentId: recoveryCase.studentId,
+        grantedById: user.id,
+        type: "RECOVERY",
+        extraAttempts: 1,
+        reason: "Recuperação automática por desempenho abaixo da média.",
+      },
+    });
+
+    await tx.examRecoveryCase.update({
+      where: { id: recoveryCase.id },
+      data: { status: "SCHEDULED", recoveryExamId: created.id },
+    });
+
+    return created;
+  });
+
+  revalidatePath("/dashboard/recuperacoes-avaliacoes");
+  revalidatePath("/provas");
+  return exam.id;
+}
+
+export async function requestExamReviewAction(fd: FormData) {
+  const user = await requireUser();
+  const org = await activeOrganization();
+  if (!org) throw new Error("Nenhuma escola ativa.");
+
+  const p = z.object({
+    attemptId: z.string().min(1),
+    reason: z.string().min(5).max(2000),
+  }).parse({
+    attemptId: String(fd.get("attemptId") ?? ""),
+    reason: String(fd.get("reason") ?? "").trim(),
+  });
+
+  const link = await db.studentUser.findFirst({
+    where: { userId: user.id, student: { organizationId: org.id } },
+  });
+  if (!link) throw new Error("Aluno não vinculado.");
+
+  const attempt = await db.examAttempt.findFirst({
+    where: {
+      id: p.attemptId,
+      organizationId: org.id,
+      studentId: link.studentId,
+      status: "GRADED",
+    },
+  });
+  if (!attempt) throw new Error("Tentativa inválida.");
+
+  const pending = await db.examReviewRequest.findFirst({
+    where: { attemptId: attempt.id, status: "PENDING" },
+  });
+  if (pending) throw new Error("Já existe revisão pendente.");
+
+  await db.examReviewRequest.create({
+    data: {
+      organizationId: org.id,
+      examId: attempt.examId,
+      attemptId: attempt.id,
+      studentId: attempt.studentId,
+      createdById: user.id,
+      reason: p.reason,
+    },
+  });
+
+  revalidatePath("/provas");
+  revalidatePath("/dashboard/revisoes-provas");
+}
+
+export async function reviewExamRequestAction(fd: FormData) {
+  const { user, org } = await requireModulePermission("assessments", "update");
+  const p = z.object({
+    id: z.string().min(1),
+    status: z.enum(["APPROVED", "REJECTED"]),
+    response: z.string().min(2),
+  }).parse({
+    id: String(fd.get("id") ?? ""),
+    status: String(fd.get("status") ?? ""),
+    response: String(fd.get("response") ?? "").trim(),
+  });
+
+  const request = await db.examReviewRequest.findFirst({
+    where: { id: p.id, organizationId: org.id, status: "PENDING" },
+    include: { exam: true },
+  });
+  if (!request) throw new Error("Revisão inválida.");
+
+  await requireTeacherAssessmentScope(
+    user.id,
+    org.id,
+    request.exam.classGroupId,
+    request.exam.subjectId,
+  );
+
+  await db.examReviewRequest.update({
+    where: { id: request.id },
+    data: {
+      status: p.status,
+      response: p.response,
+      reviewedById: user.id,
+      reviewedAt: new Date(),
+    },
+  });
+
+  revalidatePath("/dashboard/revisoes-provas");
+}
+
+export async function recordExamIntegrityEventAction(
+  attemptId: string,
+  type: "FOCUS_LOSS" | "COPY" | "PASTE" | "VISIBILITY_HIDDEN",
+) {
+  const user = await requireUser();
+  const org = await activeOrganization();
+  if (!org) return;
+
+  const link = await db.studentUser.findFirst({
+    where: { userId: user.id, student: { organizationId: org.id } },
+  });
+  if (!link) return;
+
+  const attempt = await db.examAttempt.findFirst({
+    where: {
+      id: attemptId,
+      organizationId: org.id,
+      studentId: link.studentId,
+      status: "IN_PROGRESS",
+    },
+  });
+  if (!attempt) return;
+
+  const penalty =
+    type === "COPY" || type === "PASTE" ? 10 : 5;
+
+  await db.$transaction([
+    db.examIntegrityEvent.create({
+      data: {
+        organizationId: org.id,
+        attemptId: attempt.id,
+        type,
+        penalty,
+      },
+    }),
+    db.examAttempt.update({
+      where: { id: attempt.id },
+      data: {
+        integrityScore: { decrement: penalty },
+      },
+    }),
+  ]);
 }
