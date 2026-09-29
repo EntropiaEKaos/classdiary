@@ -1,0 +1,6 @@
+import { createAssetAction } from "@/app/actions/operations";
+import { requireModulePermission } from "@/lib/rbac";
+import { db } from "@/lib/db";
+export const dynamic="force-dynamic";
+export default async function Page(){const {org}=await requireModulePermission("assets","view");const rows=await db.asset.findMany({where:{organizationId:org.id},orderBy:{createdAt:"desc"}});
+return <main className="main"><div className="page-head"><div><h1>Patrimônio</h1><div className="muted">Bens, localização, valor e status.</div></div></div><section className="table-card"><form action={createAssetAction} className="form-grid"><input name="tag" required placeholder="TAG-001"/><input name="name" required placeholder="Nome do bem"/><input name="category" required placeholder="Categoria"/><input name="serialNumber" placeholder="Número de série"/><input name="location" placeholder="Localização"/><input name="acquisitionValue" type="number" step=".01" min="0" placeholder="Valor de aquisição"/><button className="btn btn-primary">Cadastrar patrimônio</button></form></section><section className="table-card" style={{marginTop:16}}>{rows.map(r=><div className="table-row" key={r.id}><strong>{r.tag} · {r.name}</strong><span>{r.category} · {r.location??"Sem localização"}</span><span>{r.status}</span></div>)}</section></main>}
