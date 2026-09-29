@@ -119,3 +119,24 @@ export async function createAutomationRuleAction(fd:FormData){
   await db.automationRule.create({data:{organizationId:org.id,name:p.name,event:p.event,action:p.action,configuration}});
   revalidatePath("/dashboard/automacoes");
 }
+
+
+export async function answerGuardianAuthorizationAction(fd:FormData){
+  const {activeOrganization,requireUser}=await import("@/lib/auth");
+  const user=await requireUser();
+  const org=await activeOrganization();
+  if(!org) throw new Error("Nenhuma escola ativa");
+  const p=z.object({id:z.string().min(1),decision:z.enum(["APPROVED","REJECTED"])}).parse({
+    id:String(fd.get("id")??""),decision:String(fd.get("decision")??"")
+  });
+  const authorization=await db.guardianAuthorization.findFirst({
+    where:{id:p.id,organizationId:org.id,status:"PENDING"},
+    include:{student:{include:{guardians:true}}}
+  });
+  if(!authorization||!authorization.student.guardians.some(g=>g.userId===user.id)) throw new Error("Autorização inválida");
+  await db.guardianAuthorization.update({
+    where:{id:authorization.id},
+    data:{status:p.decision,answeredAt:new Date(),answeredByName:user.name}
+  });
+  revalidatePath("/portal");
+}
