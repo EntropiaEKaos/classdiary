@@ -1,4 +1,5 @@
 import Link from "next/link";
+import {toggleOrganizationAction,updateSubscriptionAction} from "@/app/actions/billing";
 import {db} from "@/lib/db";
 import {requirePlatformOwner} from "@/lib/auth";
 
@@ -51,6 +52,21 @@ export default async function SuperAdminPage(){
             <span>Usuários: <strong>{org._count.memberships}</strong></span>
             <span>Status: <strong>{org.active?"Ativa":"Bloqueada"}</strong></span>
           </div>
+          <form action={updateSubscriptionAction} className="form-stack" style={{marginTop:16}}>
+            <input type="hidden" name="organizationId" value={org.id}/>
+            <select name="plan" defaultValue={org.subscription?.plan??"STARTER"}>
+              <option value="STARTER">Starter</option><option value="PRO">Pro</option><option value="ENTERPRISE">Enterprise</option>
+            </select>
+            <select name="status" defaultValue={org.subscription?.status??"TRIAL"}>
+              <option value="TRIAL">Trial</option><option value="ACTIVE">Ativa</option><option value="PAST_DUE">Em atraso</option><option value="CANCELED">Cancelada</option>
+            </select>
+            <input name="seats" type="number" min="1" defaultValue={org.subscription?.seats??20}/>
+            <button className="btn btn-primary">Salvar plano</button>
+          </form>
+          <form action={toggleOrganizationAction} style={{marginTop:8}}>
+            <input type="hidden" name="organizationId" value={org.id}/>
+            <button className="btn btn-light">{org.active?"Bloquear escola":"Desbloquear escola"}</button>
+          </form>
         </article>)}
       </div>
       {organizations.length===0?<div className="table-card"><p className="muted">Nenhuma escola cliente criada ainda.</p></div>:null}
