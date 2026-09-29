@@ -82,6 +82,11 @@ const items = [
   ["/dashboard/rubricas-aplicadas", "Rubricas aplicadas", ClipboardCheck],
   ["/dashboard/blueprints", "Blueprints de prova", ClipboardCheck],
   ["/dashboard/desempenho-provas", "Desempenho em provas", ChartNoAxesColumnIncreasing],
+  ["/dashboard/recuperacoes-avaliacoes", "Recuperações de prova", ChartNoAxesColumnIncreasing],
+  ["/dashboard/segunda-chamada", "Segunda chamada", ClipboardCheck],
+  ["/dashboard/revisoes-provas", "Revisões de prova", BookOpenCheck],
+  ["/dashboard/integridade-provas", "Integridade de provas", TriangleAlert],
+  ["/dashboard/evolucao-avaliacoes", "Evolução em avaliações", ChartNoAxesColumnIncreasing],
   ["/dashboard/configuracoes", "Configurações", FileText],
 ] as const;
 
