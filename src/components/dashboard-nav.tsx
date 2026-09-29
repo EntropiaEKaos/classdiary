@@ -80,6 +80,8 @@ const items = [
   ["/dashboard/correcoes", "Correções", BookOpenCheck],
   ["/dashboard/analise-habilidades", "Análise por habilidade", ChartNoAxesColumnIncreasing],
   ["/dashboard/rubricas-aplicadas", "Rubricas aplicadas", ClipboardCheck],
+  ["/dashboard/blueprints", "Blueprints de prova", ClipboardCheck],
+  ["/dashboard/desempenho-provas", "Desempenho em provas", ChartNoAxesColumnIncreasing],
   ["/dashboard/configuracoes", "Configurações", FileText],
 ] as const;
 
