@@ -21,7 +21,7 @@ export default async function Page(){
   const periods=[...new Set(students.flatMap(s=>s.grades.map(g=>g.period)))];
 
   return <main className="main">
-    <div className="page-head"><div><h1>Boletins</h1><div className="muted">Médias ponderadas e fechamento acadêmico</div></div></div>
+    <div className="page-head"><div><h1>Boletins</h1><div className="muted">Médias ponderadas e fechamento acadêmico</div></div><a className="btn btn-light" href="/api/boletins/lote" target="_blank">Gerar todos em PDF</a></div>
 
     <section className="table-card">
       <h3>Fechar período</h3>
