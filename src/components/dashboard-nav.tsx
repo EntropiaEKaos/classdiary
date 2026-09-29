@@ -9,6 +9,6 @@ const items=[
 ["/dashboard/disciplinas","Disciplinas",FileText],
 ["/dashboard/diarios","Diário de classe",BookOpenCheck],
 ["/dashboard/frequencia","Frequência",ClipboardCheck],
-["/dashboard/notas","Notas",ChartNoAxesColumnIncreasing]
+["/dashboard/notas","Notas",ChartNoAxesColumnIncreasing],["/dashboard/boletins","Boletins",FileText]
 ] as const;
 export function DashboardNav(){return <aside className="sidebar"><Link href="/" className="brand"><span className="logo"><BookOpenCheck size={20}/></span>ClassDiary</Link>{items.map(([href,label,Icon])=><Link className="side-link" href={href} key={href}><Icon size={18}/>{label}</Link>)}</aside>}
