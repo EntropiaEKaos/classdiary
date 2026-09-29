@@ -278,21 +278,26 @@ export async function createRecoveryAction(fd: FormData) {
     subjectId: subject.id,
   });
 
+  let academicPeriod = null;
+
   if (year) {
-    const period = await db.academicPeriod.findFirst({
+    academicPeriod = await db.academicPeriod.findFirst({
       where: {
         organizationId: org.id,
         schoolYearId: year.id,
         name: p.period,
       },
     });
-    if (!period) throw new Error("Período acadêmico inválido.");
+    if (!academicPeriod) throw new Error("Período acadêmico inválido.");
   }
 
   const recovery = await db.recoveryGrade.create({
     data: {
       studentId: student.id,
       subjectId: subject.id,
+      schoolYearId: year?.id ?? null,
+      classGroupId: enrollment.classGroupId,
+      academicPeriodId: academicPeriod?.id ?? null,
       period: p.period,
       value: p.value,
       notes: p.notes || null,
