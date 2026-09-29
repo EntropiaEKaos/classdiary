@@ -21,7 +21,7 @@ export default async function Portal() {
           attendance: {
             include: {
               lesson: { include: { subject: true, classGroup: true } },
-              justifications: true,
+              justification: true,
             },
             orderBy: { lesson: { lessonDate: "desc" } },
           },
@@ -96,7 +96,7 @@ export default async function Portal() {
 
             <h3 style={{ marginTop: 20 }}>Faltas</h3>
             {absences.map((absence) => {
-              const justification = absence.justifications[0];
+              const justification = absence.justification;
               return (
                 <div className="notice" key={absence.id}>
                   <strong>{absence.lesson.subject.name} · {absence.lesson.classGroup.name}</strong>
