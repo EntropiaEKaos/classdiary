@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { switchOrganizationAction } from "@/app/actions/tenant";
 import { logoutAction } from "@/app/actions/auth";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { activeOrganization, requireUser } from "@/lib/auth";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +23,16 @@ export default async function Layout({ children }: { children: React.ReactNode }
         list.findIndex((item) => item.id === organization.id) === index,
     );
 
+  const unread = org
+    ? await db.notification.count({
+        where: {
+          organizationId: org.id,
+          userId: user.id,
+          readAt: null,
+        },
+      })
+    : 0;
+
   return (
     <div className="dashboard-shell">
       <DashboardNav />
@@ -32,6 +44,12 @@ export default async function Layout({ children }: { children: React.ReactNode }
           </div>
 
           <div className="top-actions">
+            <Link className="btn btn-light" href="/agenda">Agenda</Link>
+            <Link className="btn btn-light" href="/mensagens">Mensagens</Link>
+            <Link className="btn btn-light" href="/notificacoes">
+              Notificações{unread ? ` (${unread})` : ""}
+            </Link>
+
             {organizations.length > 1 ? (
               <form action={switchOrganizationAction}>
                 <select
