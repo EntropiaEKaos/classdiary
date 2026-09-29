@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createAbsenceJustificationAction, requestGradeReviewAction } from "@/app/actions/engagement";
+import { answerGuardianAuthorizationAction } from "@/app/actions/operations-next";
 import { requireUser, activeOrganization } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
@@ -26,6 +27,7 @@ export default async function Portal() {
           },
           occurrences: true,
           enrollments: { where: { active: true }, include: { classGroup: true } },
+          guardianAuthorizations: { orderBy: { requestedAt: "desc" } },
         },
       },
     },
@@ -83,6 +85,9 @@ export default async function Portal() {
                 )}
               </div>
             ))}
+
+            <h3 style={{ marginTop: 20 }}>Autorizações</h3>
+            {student.guardianAuthorizations.length === 0 ? <p className="muted">Nenhuma autorização pendente.</p> : student.guardianAuthorizations.map((authorization) => <div className="notice" key={authorization.id}><strong>{authorization.title}</strong><div className="muted">{authorization.type} · {authorization.status}</div>{authorization.description ? <p>{authorization.description}</p> : null}{authorization.status === "PENDING" ? <form action={answerGuardianAuthorizationAction} className="form-grid compact"><input type="hidden" name="id" value={authorization.id}/><button className="btn btn-primary" name="decision" value="APPROVED">Autorizar</button><button className="btn btn-light" name="decision" value="REJECTED">Recusar</button></form> : <span className="status">{authorization.status}</span>}</div>)}
 
             <h3 style={{ marginTop: 20 }}>Faltas</h3>
             {absences.map((absence) => {
