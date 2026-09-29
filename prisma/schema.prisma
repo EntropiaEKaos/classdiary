@@ -114,6 +114,7 @@ model Organization {
   competencyAssessments CompetencyAssessment[]
   pedagogicalObservations PedagogicalObservation[]
   questionBank QuestionBankItem[]
+  examBlueprints ExamBlueprint[]
   exams Exam[]
   examAttempts ExamAttempt[]
   rubricAssessments RubricAssessment[]
@@ -264,6 +265,7 @@ model Subject {
   competencyAssessments CompetencyAssessment[]
   questionBank QuestionBankItem[]
   exams Exam[]
+  examBlueprints ExamBlueprint[]
 
   @@unique([organizationId, name])
 }
@@ -400,9 +402,11 @@ model Grade {
   maxValue  Decimal  @default(10) @db.Decimal(5, 2)
   weight    Decimal  @default(1) @db.Decimal(5, 2)
   notes     String?
+  examAttemptId String? @unique
   student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   author    User     @relation("GradeAuthor", fields: [authorId], references: [id])
+  examAttempt ExamAttempt? @relation(fields: [examAttemptId], references: [id], onDelete: SetNull)
   reviewRequests GradeReviewRequest[]
   createdAt DateTime @default(now())
 
@@ -427,6 +431,7 @@ model Assignment {
   classGroupId   String
   subjectId      String
   authorId       String
+  academicPeriodId String?
   title          String
   description    String?
   dueAt          DateTime?
@@ -434,6 +439,7 @@ model Assignment {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   classGroup     ClassGroup   @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
   subject        Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  academicPeriod AcademicPeriod? @relation(fields: [academicPeriodId], references: [id], onDelete: SetNull)
   author         User         @relation("AssignmentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   submissions    AssignmentSubmission[]
   createdAt      DateTime     @default(now())
@@ -488,6 +494,7 @@ model CouncilDecision {
   student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   author         User         @relation("CouncilAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   schoolYear     SchoolYear   @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  exams          Exam[]
   createdAt      DateTime     @default(now())
 
   @@index([organizationId, schoolYearId, period])
@@ -1206,6 +1213,7 @@ model CurriculumCompetency {
   lessonPlans    LessonPlanCompetency[]
   questionLinks  QuestionCompetency[]
   examAnalytics  ExamQuestionCompetency[]
+  blueprintComponents ExamBlueprintComponent[]
   createdAt      DateTime     @default(now())
 
   @@unique([organizationId, frameworkId, code])
@@ -1391,6 +1399,7 @@ model QuestionBankItem {
   difficulty     String       @default("MEDIUM")
   options        Json?
   correctAnswer  String?
+  tags           String[]     @default([])
   maxScore       Decimal      @default(1) @db.Decimal(5, 2)
   active         Boolean      @default(true)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -1428,6 +1437,9 @@ model Exam {
   durationMinutes Int?
   maxAttempts    Int          @default(1)
   shuffleQuestions Boolean    @default(false)
+  postToGradebook Boolean     @default(true)
+  gradeLabel     String?
+  gradeWeight    Decimal      @default(1) @db.Decimal(5, 2)
   published      Boolean      @default(false)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   classGroup     ClassGroup   @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
@@ -1477,9 +1489,11 @@ model ExamAttempt {
   autoScore      Decimal      @default(0) @db.Decimal(7, 2)
   manualScore    Decimal      @default(0) @db.Decimal(7, 2)
   finalScore     Decimal      @default(0) @db.Decimal(7, 2)
+  gradePostedAt  DateTime?
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   exam           Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
   student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  grade          Grade?
   answers        ExamAnswer[]
 
   @@index([organizationId, status, startedAt])
@@ -1521,6 +1535,37 @@ model RubricAssessment {
 
   @@index([organizationId, createdAt])
   @@index([studentId, rubricId])
+}
+
+model ExamBlueprint {
+  id             String       @id @default(cuid())
+  organizationId String
+  subjectId      String?
+  name           String
+  description    String?
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subject        Subject?     @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  components     ExamBlueprintComponent[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, name])
+  @@index([organizationId, active])
+}
+
+model ExamBlueprintComponent {
+  id             String       @id @default(cuid())
+  blueprintId    String
+  competencyId   String
+  questionType   String?
+  difficulty     String?
+  questionCount  Int
+  pointsEach     Decimal      @default(1) @db.Decimal(5, 2)
+  blueprint      ExamBlueprint @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
+  competency     CurriculumCompetency @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+
+  @@index([blueprintId])
 }
 
 model Survey {
