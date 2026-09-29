@@ -18,6 +18,7 @@ const roleDefaults: Record<SchoolRole, Record<string, PermissionAction[]>> = {
   },
   COORDINATOR: {
     academic: ["view", "create", "update"],
+    students: ["view", "create", "update"],
     reports: ["view"],
     crm: ["view", "create", "update"],
     health: ["view", "create", "update"],
@@ -28,18 +29,17 @@ const roleDefaults: Record<SchoolRole, Record<string, PermissionAction[]>> = {
     quality: ["view", "create", "update"],
     goals: ["view", "create", "update"],
     bi: ["view"],
-    curriculum: ["view"],
-    pedagogy: ["view", "create", "update"],
-    assessments: ["view", "create", "update"],
-    assessments: ["view", "create", "update"],
     assistant: ["view"],
     curriculum: ["view", "create", "update"],
     pedagogy: ["view", "create", "update"],
+    assessments: ["view", "create", "update"],
     messaging: ["view", "create", "update"],
-    students: ["view", "create", "update"],
   },
   TEACHER: {
     academic: ["view", "create", "update"],
+    pedagogy: ["view", "create", "update"],
+    assessments: ["view", "create", "update"],
+    curriculum: ["view"],
     messaging: ["view", "create"],
     reports: ["view"],
   },
@@ -76,6 +76,21 @@ const roleDefaults: Record<SchoolRole, Record<string, PermissionAction[]>> = {
   },
 };
 
+function actionAllowed(
+  role: SchoolRole,
+  module: string,
+  action: PermissionAction,
+) {
+  const permissions = roleDefaults[role];
+  if (!permissions) return false;
+
+  return (
+    permissions["*"]?.includes(action) ||
+    permissions[module]?.includes(action) ||
+    false
+  );
+}
+
 export async function requireSchoolRole(roles: SchoolRole[]) {
   const user = await requireUser();
   const org = await activeOrganization();
@@ -93,20 +108,20 @@ export async function requireSchoolRole(roles: SchoolRole[]) {
   return { user, org };
 }
 
-export async function requireModulePermission(
+export async function hasModulePermission(
   module: string,
   action: PermissionAction,
 ) {
   const user = await requireUser();
   const org = await activeOrganization();
 
-  if (!org) redirect("/onboarding");
+  if (!org) return false;
 
   const memberships = user.memberships.filter(
     (membership) => membership.organizationId === org.id,
   );
 
-  if (!memberships.length) redirect("/dashboard");
+  if (!memberships.length) return false;
 
   const overrides = await db.permissionOverride.findMany({
     where: {
@@ -120,7 +135,7 @@ export async function requireModulePermission(
     overrides.map((override) => [override.membershipId, override]),
   );
 
-  const defaultAllowed = memberships.some((membership) => {
+  return memberships.some((membership) => {
     const override = overrideByMembership.get(membership.id);
 
     if (override) {
@@ -133,17 +148,26 @@ export async function requireModulePermission(
             : override.canDelete;
     }
 
-    const role = membership.role as SchoolRole;
-    const permissions = roleDefaults[role];
-    if (!permissions) return false;
-
-    return (
-      permissions["*"]?.includes(action) ||
-      permissions[module]?.includes(action)
+    return actionAllowed(
+      membership.role as SchoolRole,
+      module,
+      action,
     );
   });
+}
 
-  if (!defaultAllowed) redirect("/dashboard");
+export async function requireModulePermission(
+  module: string,
+  action: PermissionAction,
+) {
+  const user = await requireUser();
+  const org = await activeOrganization();
+
+  if (!org) redirect("/onboarding");
+
+  if (!(await hasModulePermission(module, action))) {
+    redirect("/dashboard");
+  }
 
   return { user, org };
 }
