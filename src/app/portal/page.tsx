@@ -27,6 +27,7 @@ export default async function Portal() {
           },
           occurrences: true,
           enrollments: { where: { active: true }, include: { classGroup: true } },
+          pedagogicalObservations: { where: { visibility: "FAMILY" }, include: { author: true }, orderBy: { createdAt: "desc" } },
           guardianAuthorizations: { orderBy: { requestedAt: "desc" } },
         },
       },
@@ -86,6 +87,9 @@ export default async function Portal() {
                 )}
               </div>
             ))}
+
+            <h3 style={{ marginTop: 20 }}>Acompanhamento pedagógico</h3>
+            {student.pedagogicalObservations.length === 0 ? <p className="muted">Nenhuma observação compartilhada pela equipe.</p> : student.pedagogicalObservations.slice(0,10).map((observation) => <div className="notice" key={observation.id}><strong>{observation.category}</strong><div>{observation.note}</div><small className="muted">{observation.author.name} · {observation.createdAt.toLocaleDateString("pt-BR")}</small></div>)}
 
             <h3 style={{ marginTop: 20 }}>Autorizações</h3>
             {student.guardianAuthorizations.length === 0 ? <p className="muted">Nenhuma autorização pendente.</p> : student.guardianAuthorizations.map((authorization) => <div className="notice" key={authorization.id}><strong>{authorization.title}</strong><div className="muted">{authorization.type} · {authorization.status}</div>{authorization.description ? <p>{authorization.description}</p> : null}{authorization.status === "PENDING" ? <form action={answerGuardianAuthorizationAction} className="form-grid compact"><input type="hidden" name="id" value={authorization.id}/><button className="btn btn-primary" name="decision" value="APPROVED">Autorizar</button><button className="btn btn-light" name="decision" value="REJECTED">Recusar</button></form> : <span className="status">{authorization.status}</span>}</div>)}
