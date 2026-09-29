@@ -39,6 +39,9 @@ model Organization {
   email         String?
   phone         String?
   logoUrl       String?
+  timezone      String         @default("America/Sao_Paulo")
+  passingGrade  Decimal        @default(6) @db.Decimal(4, 2)
+  attendanceWarningPercent Int @default(75)
   active        Boolean        @default(true)
   memberships   Membership[]
   schoolYears   SchoolYear[]
@@ -47,6 +50,8 @@ model Organization {
   students      Student[]
   announcements Announcement[]
   academicEvents AcademicEvent[]
+  academicPeriods AcademicPeriod[]
+  timetableEntries TimetableEntry[]
   invitations    Invitation[]
   occurrences    Occurrence[]
   assignments    Assignment[]
@@ -78,6 +83,7 @@ model User {
   studentLinks StudentUser[]
   documentsCreated AcademicDocument[] @relation("DocumentAuthor")
   councilDecisions CouncilDecision[] @relation("CouncilAuthor")
+  timetableEntries TimetableEntry[] @relation("TimetableTeacher")
   auditLogs   AuditLog[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -118,6 +124,7 @@ model SchoolYear {
   active         Boolean      @default(false)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   classGroups    ClassGroup[]
+  academicPeriods AcademicPeriod[]
   councilDecisions CouncilDecision[]
 
   @@unique([organizationId, name])
@@ -137,6 +144,7 @@ model ClassGroup {
   classSubjects  ClassSubject[]
   lessons        Lesson[]
   assignments    Assignment[]
+  timetableEntries TimetableEntry[]
 
   @@unique([organizationId, schoolYearId, name])
   @@index([organizationId, schoolYearId])
@@ -154,6 +162,7 @@ model Subject {
   grades         Grade[]
   assignments    Assignment[]
   recoveryGrades RecoveryGrade[]
+  timetableEntries TimetableEntry[]
 
   @@unique([organizationId, name])
 }
@@ -410,6 +419,43 @@ model Occurrence {
 
   @@index([organizationId, occurredAt])
   @@index([studentId, occurredAt])
+}
+
+model AcademicPeriod {
+  id             String       @id @default(cuid())
+  organizationId String
+  schoolYearId   String
+  name           String
+  startsAt       DateTime
+  endsAt         DateTime
+  order          Int
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  schoolYear     SchoolYear   @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, schoolYearId, name])
+  @@unique([organizationId, schoolYearId, order])
+  @@index([organizationId, startsAt])
+}
+
+model TimetableEntry {
+  id             String       @id @default(cuid())
+  organizationId String
+  classGroupId   String
+  subjectId      String
+  teacherId      String?
+  weekday        Int
+  startsAt       String
+  endsAt         String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  classGroup     ClassGroup   @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  subject        Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher        User?        @relation("TimetableTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, weekday, startsAt])
+  @@index([classGroupId, weekday])
 }
 
 model AcademicEvent {
