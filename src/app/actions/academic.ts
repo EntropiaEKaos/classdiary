@@ -473,25 +473,43 @@ export async function createGradeAction(fd: FormData) {
     subjectId: subject.id,
   });
 
-  if (
-    year &&
-    (await db.periodClosure.findUnique({
+  let academicPeriod = null;
+
+  if (year) {
+    academicPeriod = await db.academicPeriod.findFirst({
       where: {
-        organizationId_schoolYearId_period: {
-          organizationId: org.id,
-          schoolYearId: year.id,
-          period: p.period,
-        },
+        organizationId: org.id,
+        schoolYearId: year.id,
+        name: p.period,
       },
-    }))
-  ) {
-    throw new Error("Este período já está fechado para lançamento de notas.");
+    });
+
+    if (!academicPeriod) {
+      throw new Error("Período acadêmico inválido.");
+    }
+
+    if (
+      await db.periodClosure.findUnique({
+        where: {
+          organizationId_schoolYearId_period: {
+            organizationId: org.id,
+            schoolYearId: year.id,
+            period: p.period,
+          },
+        },
+      })
+    ) {
+      throw new Error("Este período já está fechado para lançamento de notas.");
+    }
   }
 
   const grade = await db.grade.create({
     data: {
       ...p,
       authorId: user.id,
+      schoolYearId: year?.id ?? null,
+      classGroupId: relevantEnrollment.classGroupId,
+      academicPeriodId: academicPeriod?.id ?? null,
     },
   });
 
