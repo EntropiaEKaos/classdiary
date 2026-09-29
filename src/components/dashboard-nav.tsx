@@ -75,6 +75,11 @@ const items = [
   ["/dashboard/competencias", "Competências", ChartNoAxesColumnIncreasing],
   ["/dashboard/intervencoes", "Intervenções", TriangleAlert],
   ["/dashboard/evolucao", "Evolução", GraduationCap],
+  ["/dashboard/banco-questoes", "Banco de questões", NotebookTabs],
+  ["/dashboard/provas", "Provas online", ClipboardCheck],
+  ["/dashboard/correcoes", "Correções", BookOpenCheck],
+  ["/dashboard/analise-habilidades", "Análise por habilidade", ChartNoAxesColumnIncreasing],
+  ["/dashboard/rubricas-aplicadas", "Rubricas aplicadas", ClipboardCheck],
   ["/dashboard/configuracoes", "Configurações", FileText],
 ] as const;
 
