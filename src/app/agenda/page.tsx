@@ -63,14 +63,17 @@ export default async function Page() {
     }
   }
 
+  const scopedClassFilter =
+    !isStaff && !isTeacher
+      ? { classGroupId: { in: classIds.size ? [...classIds] : ["__NO_CLASS__"] } }
+      : {};
+
   const timetable = await db.timetableEntry.findMany({
     where: {
       organizationId: org.id,
       ...(isTeacher && !isStaff
         ? { teacherId: user.id }
-        : classIds.size && !isStaff
-          ? { classGroupId: { in: [...classIds] } }
-          : {}),
+        : scopedClassFilter),
     },
     include: {
       classGroup: true,
@@ -88,9 +91,7 @@ export default async function Page() {
       dueAt: { gte: now },
       ...(isTeacher && !isStaff
         ? { authorId: user.id }
-        : classIds.size && !isStaff
-          ? { classGroupId: { in: [...classIds] } }
-          : {}),
+        : scopedClassFilter),
     },
     include: {
       classGroup: true,
