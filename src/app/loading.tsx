@@ -1,0 +1,1 @@
+export default function Loading(){return <main className="auth-page"><section className="auth-card"><span className="badge">ClassDiary</span><h2>Carregando...</h2><p className="muted">Preparando seu ambiente escolar.</p></section></main>}
