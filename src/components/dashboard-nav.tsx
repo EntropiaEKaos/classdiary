@@ -69,6 +69,12 @@ const items = [
   ["/dashboard/metas", "Metas", ClipboardCheck],
   ["/dashboard/bi", "BI executivo", ChartNoAxesColumnIncreasing],
   ["/dashboard/assistente", "Assistente", FileText],
+  ["/dashboard/curriculo", "Currículo", BookOpenCheck],
+  ["/dashboard/rubricas", "Rubricas", ClipboardCheck],
+  ["/dashboard/planos-aula", "Planos de aula", NotebookTabs],
+  ["/dashboard/competencias", "Competências", ChartNoAxesColumnIncreasing],
+  ["/dashboard/intervencoes", "Intervenções", TriangleAlert],
+  ["/dashboard/evolucao", "Evolução", GraduationCap],
   ["/dashboard/configuracoes", "Configurações", FileText],
 ] as const;
 
