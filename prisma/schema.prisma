@@ -70,6 +70,11 @@ model Organization {
   invoices Invoice[]
   payments Payment[]
   receipts Receipt[]
+  enrollmentLeads EnrollmentLead[]
+  costCenters CostCenter[]
+  expenses Expense[]
+  revenues Revenue[]
+  contractAcceptances ContractAcceptance[]
   subscription  Subscription?
   auditLogs     AuditLog[]
   createdAt     DateTime       @default(now())
@@ -242,6 +247,8 @@ model Student {
   invoices Invoice[]
   payments Payment[]
   receipts Receipt[]
+  enrollmentLeads EnrollmentLead[]
+  contractAcceptances ContractAcceptance[]
   absenceJustifications AbsenceJustification[]
   gradeReviewRequests GradeReviewRequest[]
   createdAt      DateTime     @default(now())
@@ -508,6 +515,7 @@ model StudentContract {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   invoices       Invoice[]
+  acceptances    ContractAcceptance[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -579,6 +587,98 @@ model Receipt {
 
   @@unique([organizationId, number])
   @@index([studentId, issuedAt])
+}
+
+model EnrollmentLead {
+  id             String       @id @default(cuid())
+  organizationId String
+  studentName    String
+  birthDate      DateTime?
+  guardianName   String
+  guardianEmail  String?
+  guardianPhone  String
+  desiredGrade   String?
+  desiredShift   String?
+  source         String?
+  notes          String?
+  status         String       @default("PRE_ENROLLMENT")
+  convertedStudentId String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  convertedStudent Student?   @relation(fields: [convertedStudentId], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, status, createdAt])
+  @@index([guardianPhone])
+}
+
+model ContractAcceptance {
+  id             String       @id @default(cuid())
+  organizationId String
+  contractId     String
+  studentId      String
+  acceptedByName String
+  acceptedByDocument String?
+  acceptedAt     DateTime     @default(now())
+  ipAddress      String?
+  userAgent      String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contract       StudentContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId])
+  @@index([organizationId, acceptedAt])
+}
+
+model CostCenter {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  code           String?
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  expenses       Expense[]
+  revenues       Revenue[]
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, name])
+}
+
+model Expense {
+  id             String       @id @default(cuid())
+  organizationId String
+  costCenterId   String?
+  description    String
+  category       String
+  amount         Decimal      @db.Decimal(10, 2)
+  dueAt          DateTime
+  paidAt         DateTime?
+  status         String       @default("OPEN")
+  supplier       String?
+  notes          String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  costCenter     CostCenter?  @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, status, dueAt])
+}
+
+model Revenue {
+  id             String       @id @default(cuid())
+  organizationId String
+  costCenterId   String?
+  description    String
+  category       String
+  amount         Decimal      @db.Decimal(10, 2)
+  receivedAt     DateTime
+  source         String?
+  notes          String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  costCenter     CostCenter?  @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, receivedAt])
 }
 
 model StudentGuardian {
