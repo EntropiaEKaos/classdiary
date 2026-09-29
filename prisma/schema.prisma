@@ -62,6 +62,9 @@ model Organization {
   notifications Notification[]
   absenceJustifications AbsenceJustification[]
   gradeReviewRequests GradeReviewRequest[]
+  documentRequirements StudentDocumentRequirement[]
+  academicMovements AcademicMovement[]
+  annualResults AnnualResult[]
   subscription  Subscription?
   auditLogs     AuditLog[]
   createdAt     DateTime       @default(now())
@@ -138,6 +141,7 @@ model SchoolYear {
   classGroups    ClassGroup[]
   academicPeriods AcademicPeriod[]
   councilDecisions CouncilDecision[]
+  annualResults AnnualResult[]
 
   @@unique([organizationId, name])
 }
@@ -157,6 +161,8 @@ model ClassGroup {
   lessons        Lesson[]
   assignments    Assignment[]
   timetableEntries TimetableEntry[]
+  movementsFrom AcademicMovement[] @relation("MovementFromClass")
+  movementsTo AcademicMovement[] @relation("MovementToClass")
 
   @@unique([organizationId, schoolYearId, name])
   @@index([organizationId, schoolYearId])
@@ -200,6 +206,17 @@ model Student {
   guardianName   String?
   guardianPhone  String?
   guardianEmail  String?
+  cpf            String?
+  rg             String?
+  addressLine    String?
+  addressNumber  String?
+  addressDistrict String?
+  addressCity    String?
+  addressState   String?
+  addressZip     String?
+  emergencyContactName String?
+  emergencyContactPhone String?
+  healthNotes    String?
   active         Boolean      @default(true)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   enrollments    Enrollment[]
@@ -213,6 +230,9 @@ model Student {
   recoveryGrades RecoveryGrade[]
   councilDecisions CouncilDecision[]
   documents      AcademicDocument[]
+  documentRequirements StudentDocumentRequirement[]
+  academicMovements AcademicMovement[]
+  annualResults AnnualResult[]
   absenceJustifications AbsenceJustification[]
   gradeReviewRequests GradeReviewRequest[]
   createdAt      DateTime     @default(now())
@@ -387,6 +407,64 @@ model AcademicDocument {
 
   @@index([organizationId, type, createdAt])
   @@index([studentId, createdAt])
+}
+
+model StudentDocumentRequirement {
+  id             String       @id @default(cuid())
+  organizationId String
+  studentId      String
+  code           String
+  label          String
+  required       Boolean      @default(true)
+  status         String       @default("PENDING")
+  fileUrl        String?
+  receivedAt     DateTime?
+  notes          String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([studentId, code])
+  @@index([organizationId, status])
+}
+
+model AcademicMovement {
+  id             String       @id @default(cuid())
+  organizationId String
+  studentId      String
+  type           String
+  fromClassGroupId String?
+  toClassGroupId   String?
+  notes          String?
+  effectiveAt    DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  fromClassGroup ClassGroup?  @relation("MovementFromClass", fields: [fromClassGroupId], references: [id], onDelete: SetNull)
+  toClassGroup   ClassGroup?  @relation("MovementToClass", fields: [toClassGroupId], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, effectiveAt])
+  @@index([studentId, effectiveAt])
+}
+
+model AnnualResult {
+  id             String       @id @default(cuid())
+  organizationId String
+  studentId      String
+  schoolYearId   String
+  status         String
+  finalAverage   Decimal?     @db.Decimal(5, 2)
+  attendancePercent Decimal?  @db.Decimal(5, 2)
+  notes          String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  schoolYear     SchoolYear   @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([studentId, schoolYearId])
+  @@index([organizationId, schoolYearId, status])
 }
 
 model StudentGuardian {
