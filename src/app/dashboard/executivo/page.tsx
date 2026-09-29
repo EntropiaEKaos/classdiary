@@ -7,7 +7,7 @@ export default async function Page(){
   const {org}=await requireSchoolRole(["SCHOOL_ADMIN","COORDINATOR"]);
   const now=new Date();const monthStart=new Date(now.getFullYear(),now.getMonth(),1);const monthEnd=new Date(now.getFullYear(),now.getMonth()+1,1);
 
-  const [students,teachers,employees,alerts,received,expenses,overdue,leads,assets,lowStock,loans,transport,canteen,medicalToday,pendingAuthorizations,maintenanceOpen,maintenanceDue,purchaseOpen,surveyScores,activeGoals,achievedGoals]=await Promise.all([
+  const [students,teachers,employees,alerts,received,expenses,overdue,leads,assets,lowStock,loans,transport,canteen,medicalToday,pendingAuthorizations,maintenanceOpen,maintenanceDue,purchaseOpen,surveyScores,activeGoals,achievedGoals,lessonPlans,competencyAssessments,activeInterventions]=await Promise.all([
     db.student.count({where:{organizationId:org.id,active:true}}),
     db.membership.count({where:{organizationId:org.id,role:"TEACHER"}}),
     db.employee.count({where:{organizationId:org.id,active:true}}),
@@ -28,7 +28,10 @@ export default async function Page(){
     db.purchaseOrder.count({where:{organizationId:org.id,status:{in:["DRAFT","ORDERED"]}}}),
     db.surveyResponse.findMany({where:{organizationId:org.id},select:{score:true}}),
     db.pedagogicalGoal.count({where:{organizationId:org.id,status:"ACTIVE"}}),
-    db.pedagogicalGoal.count({where:{organizationId:org.id,status:"ACHIEVED"}})
+    db.pedagogicalGoal.count({where:{organizationId:org.id,status:"ACHIEVED"}}),
+    db.lessonPlan.count({where:{organizationId:org.id}}),
+    db.competencyAssessment.count({where:{organizationId:org.id}}),
+    db.pedagogicalIntervention.count({where:{organizationId:org.id,status:"ACTIVE"}})
   ]);
 
   const academicAlerts=alerts.filter(s=>{
@@ -71,6 +74,9 @@ export default async function Page(){
       <div className="table-row"><strong>Compras em andamento</strong><span>{purchaseOpen}</span></div>
       <div className="table-row"><strong>NPS institucional</strong><span>{nps.toFixed(0)}</span></div>
       <div className="table-row"><strong>Metas pedagógicas</strong><span>{activeGoals} ativas · {achievedGoals} atingidas</span></div>
+      <div className="table-row"><strong>Planos de aula</strong><span>{lessonPlans} registrados</span></div>
+      <div className="table-row"><strong>Avaliações por competência</strong><span>{competencyAssessments}</span></div>
+      <div className="table-row"><strong>Intervenções pedagógicas ativas</strong><span>{activeInterventions}</span></div>
     </section>
   </main>;
 }
