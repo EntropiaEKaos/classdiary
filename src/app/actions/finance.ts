@@ -1,0 +1,371 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { db } from "@/lib/db";
+import { requireSchoolRole } from "@/lib/rbac";
+
+function calculateDiscount(
+  amount: number,
+  type?: string | null,
+  value?: number | null,
+) {
+  if (!type || !value) return 0;
+  if (type === "PERCENT") return Math.min(amount, (amount * value) / 100);
+  if (type === "FIXED") return Math.min(amount, value);
+  return 0;
+}
+
+export async function updateFinancialSettingsAction(fd: FormData) {
+  const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN"]);
+
+  const p = z.object({
+    pixKey: z.string().optional(),
+    pixKeyType: z.string().optional(),
+    legalName: z.string().optional(),
+    document: z.string().optional(),
+    receiptPrefix: z.string().min(1).max(10),
+    defaultDueDay: z.coerce.number().int().min(1).max(28),
+    lateFeePercent: z.coerce.number().min(0).max(100),
+    monthlyInterestPercent: z.coerce.number().min(0).max(100),
+  }).parse({
+    pixKey: String(fd.get("pixKey") ?? "").trim(),
+    pixKeyType: String(fd.get("pixKeyType") ?? "").trim(),
+    legalName: String(fd.get("legalName") ?? "").trim(),
+    document: String(fd.get("document") ?? "").trim(),
+    receiptPrefix: String(fd.get("receiptPrefix") ?? "REC").trim().toUpperCase(),
+    defaultDueDay: fd.get("defaultDueDay"),
+    lateFeePercent: fd.get("lateFeePercent"),
+    monthlyInterestPercent: fd.get("monthlyInterestPercent"),
+  });
+
+  await db.financialSettings.upsert({
+    where: { organizationId: org.id },
+    update: {
+      pixKey: p.pixKey || null,
+      pixKeyType: p.pixKeyType || null,
+      legalName: p.legalName || null,
+      document: p.document || null,
+      receiptPrefix: p.receiptPrefix,
+      defaultDueDay: p.defaultDueDay,
+      lateFeePercent: p.lateFeePercent,
+      monthlyInterestPercent: p.monthlyInterestPercent,
+    },
+    create: {
+      organizationId: org.id,
+      pixKey: p.pixKey || null,
+      pixKeyType: p.pixKeyType || null,
+      legalName: p.legalName || null,
+      document: p.document || null,
+      receiptPrefix: p.receiptPrefix,
+      defaultDueDay: p.defaultDueDay,
+      lateFeePercent: p.lateFeePercent,
+      monthlyInterestPercent: p.monthlyInterestPercent,
+    },
+  });
+
+  await db.auditLog.create({
+    data: {
+      userId: user.id,
+      organizationId: org.id,
+      action: "UPDATE",
+      entity: "FinancialSettings",
+      entityId: org.id,
+    },
+  });
+
+  revalidatePath("/dashboard/financeiro/configuracoes");
+}
+
+export async function createStudentContractAction(fd: FormData) {
+  const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "SECRETARY"]);
+
+  const p = z.object({
+    studentId: z.string().min(1),
+    title: z.string().min(2),
+    startsAt: z.string().min(1),
+    endsAt: z.string().optional(),
+    monthlyAmount: z.coerce.number().positive(),
+    discountType: z.enum(["NONE", "PERCENT", "FIXED"]),
+    discountValue: z.coerce.number().min(0).optional(),
+    scholarshipLabel: z.string().optional(),
+    notes: z.string().optional(),
+  }).parse({
+    studentId: String(fd.get("studentId") ?? ""),
+    title: String(fd.get("title") ?? "").trim(),
+    startsAt: String(fd.get("startsAt") ?? ""),
+    endsAt: String(fd.get("endsAt") ?? ""),
+    monthlyAmount: fd.get("monthlyAmount"),
+    discountType: String(fd.get("discountType") ?? "NONE"),
+    discountValue: fd.get("discountValue") || 0,
+    scholarshipLabel: String(fd.get("scholarshipLabel") ?? "").trim(),
+    notes: String(fd.get("notes") ?? "").trim(),
+  });
+
+  const student = await db.student.findFirst({
+    where: { id: p.studentId, organizationId: org.id },
+  });
+  if (!student) throw new Error("Aluno inválido.");
+
+  const contract = await db.studentContract.create({
+    data: {
+      organizationId: org.id,
+      studentId: student.id,
+      title: p.title,
+      startsAt: new Date(p.startsAt),
+      endsAt: p.endsAt ? new Date(p.endsAt) : null,
+      monthlyAmount: p.monthlyAmount,
+      discountType: p.discountType === "NONE" ? null : p.discountType,
+      discountValue: p.discountType === "NONE" ? null : p.discountValue ?? 0,
+      scholarshipLabel: p.scholarshipLabel || null,
+      notes: p.notes || null,
+    },
+  });
+
+  await db.auditLog.create({
+    data: {
+      userId: user.id,
+      organizationId: org.id,
+      action: "CREATE",
+      entity: "StudentContract",
+      entityId: contract.id,
+    },
+  });
+
+  revalidatePath("/dashboard/financeiro/contratos");
+}
+
+export async function generateMonthlyInvoiceAction(fd: FormData) {
+  const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "SECRETARY"]);
+
+  const p = z.object({
+    contractId: z.string().min(1),
+    month: z.coerce.number().int().min(1).max(12),
+    year: z.coerce.number().int().min(2000).max(2100),
+  }).parse({
+    contractId: String(fd.get("contractId") ?? ""),
+    month: fd.get("month"),
+    year: fd.get("year"),
+  });
+
+  const [contract, settings] = await Promise.all([
+    db.studentContract.findFirst({
+      where: { id: p.contractId, organizationId: org.id, status: "ACTIVE" },
+      include: { student: true },
+    }),
+    db.financialSettings.findUnique({
+      where: { organizationId: org.id },
+    }),
+  ]);
+
+  if (!contract) throw new Error("Contrato inválido.");
+
+  const baseAmount = Number(contract.monthlyAmount);
+  const discount = calculateDiscount(
+    baseAmount,
+    contract.discountType,
+    contract.discountValue ? Number(contract.discountValue) : null,
+  );
+
+  const dueDay = settings?.defaultDueDay ?? 10;
+  const dueAt = new Date(p.year, p.month - 1, dueDay, 12, 0, 0);
+  const reference = `${contract.student.registration}-${p.year}-${String(p.month).padStart(2, "0")}`;
+
+  const invoice = await db.invoice.upsert({
+    where: {
+      organizationId_reference: {
+        organizationId: org.id,
+        reference,
+      },
+    },
+    update: {
+      description: `Mensalidade ${String(p.month).padStart(2, "0")}/${p.year}`,
+      dueAt,
+      amount: baseAmount,
+      discountAmount: discount,
+    },
+    create: {
+      organizationId: org.id,
+      studentId: contract.studentId,
+      contractId: contract.id,
+      reference,
+      description: `Mensalidade ${String(p.month).padStart(2, "0")}/${p.year}`,
+      dueAt,
+      amount: baseAmount,
+      discountAmount: discount,
+    },
+  });
+
+  await db.auditLog.create({
+    data: {
+      userId: user.id,
+      organizationId: org.id,
+      action: "GENERATE",
+      entity: "Invoice",
+      entityId: invoice.id,
+    },
+  });
+
+  revalidatePath("/dashboard/financeiro/cobrancas");
+}
+
+export async function registerPaymentAction(fd: FormData) {
+  const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "SECRETARY"]);
+
+  const p = z.object({
+    invoiceId: z.string().min(1),
+    amount: z.coerce.number().positive(),
+    method: z.enum(["PIX", "CASH", "CARD", "TRANSFER", "OTHER"]),
+    externalReference: z.string().optional(),
+    notes: z.string().optional(),
+  }).parse({
+    invoiceId: String(fd.get("invoiceId") ?? ""),
+    amount: fd.get("amount"),
+    method: String(fd.get("method") ?? "PIX"),
+    externalReference: String(fd.get("externalReference") ?? "").trim(),
+    notes: String(fd.get("notes") ?? "").trim(),
+  });
+
+  const invoice = await db.invoice.findFirst({
+    where: { id: p.invoiceId, organizationId: org.id },
+    include: { payments: true, student: true },
+  });
+  if (!invoice) throw new Error("Cobrança inválida.");
+
+  const currentPaid = invoice.payments.reduce(
+    (sum, payment) => sum + Number(payment.amount),
+    0,
+  );
+
+  const targetAmount =
+    Number(invoice.amount) -
+    Number(invoice.discountAmount) +
+    Number(invoice.fineAmount) +
+    Number(invoice.interestAmount);
+
+  if (currentPaid + p.amount > targetAmount + 0.01) {
+    throw new Error("Pagamento excede o saldo da cobrança.");
+  }
+
+  const payment = await db.payment.create({
+    data: {
+      organizationId: org.id,
+      studentId: invoice.studentId,
+      invoiceId: invoice.id,
+      amount: p.amount,
+      method: p.method,
+      externalReference: p.externalReference || null,
+      notes: p.notes || null,
+    },
+  });
+
+  const newPaid = currentPaid + p.amount;
+  const settled = newPaid >= targetAmount - 0.01;
+
+  if (settled) {
+    await db.invoice.update({
+      where: { id: invoice.id },
+      data: {
+        status: "PAID",
+        paidAt: new Date(),
+      },
+    });
+  }
+
+  const settings = await db.financialSettings.findUnique({
+    where: { organizationId: org.id },
+  });
+
+  const prefix = settings?.receiptPrefix ?? "REC";
+  const receiptNumber = `${prefix}-${Date.now()}-${payment.id.slice(-6).toUpperCase()}`;
+
+  const receipt = await db.receipt.create({
+    data: {
+      organizationId: org.id,
+      studentId: invoice.studentId,
+      invoiceId: invoice.id,
+      paymentId: payment.id,
+      number: receiptNumber,
+      amount: p.amount,
+      description: `Pagamento de ${invoice.description}`,
+    },
+  });
+
+  await db.auditLog.create({
+    data: {
+      userId: user.id,
+      organizationId: org.id,
+      action: "PAY",
+      entity: "Invoice",
+      entityId: invoice.id,
+      metadata: {
+        paymentId: payment.id,
+        receiptId: receipt.id,
+        amount: p.amount,
+        method: p.method,
+      },
+    },
+  });
+
+  revalidatePath("/dashboard/financeiro/cobrancas");
+  revalidatePath("/dashboard/financeiro");
+}
+
+export async function applyOverdueChargesAction(fd: FormData) {
+  const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN"]);
+
+  const id = z.string().min(1).parse(String(fd.get("invoiceId") ?? ""));
+
+  const [invoice, settings] = await Promise.all([
+    db.invoice.findFirst({
+      where: { id, organizationId: org.id, status: "OPEN" },
+    }),
+    db.financialSettings.findUnique({
+      where: { organizationId: org.id },
+    }),
+  ]);
+
+  if (!invoice) throw new Error("Cobrança inválida.");
+  if (invoice.dueAt >= new Date()) throw new Error("Cobrança ainda não venceu.");
+
+  const base =
+    Number(invoice.amount) -
+    Number(invoice.discountAmount);
+
+  const lateFeePercent = Number(settings?.lateFeePercent ?? 2);
+  const monthlyInterestPercent = Number(
+    settings?.monthlyInterestPercent ?? 1,
+  );
+
+  const daysLate = Math.max(
+    1,
+    Math.floor((Date.now() - invoice.dueAt.getTime()) / 86_400_000),
+  );
+
+  const fineAmount = (base * lateFeePercent) / 100;
+  const interestAmount =
+    (base * monthlyInterestPercent * (daysLate / 30)) / 100;
+
+  await db.invoice.update({
+    where: { id: invoice.id },
+    data: {
+      status: "OVERDUE",
+      fineAmount,
+      interestAmount,
+    },
+  });
+
+  await db.auditLog.create({
+    data: {
+      userId: user.id,
+      organizationId: org.id,
+      action: "OVERDUE",
+      entity: "Invoice",
+      entityId: invoice.id,
+      metadata: { daysLate, fineAmount, interestAmount },
+    },
+  });
+
+  revalidatePath("/dashboard/financeiro/cobrancas");
+  revalidatePath("/dashboard/financeiro");
+}
