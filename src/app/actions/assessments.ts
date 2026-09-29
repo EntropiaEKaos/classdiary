@@ -516,6 +516,7 @@ export async function gradeExamAnswerAction(fd: FormData) {
     where: { id: answer.id },
     data: {
       manualScore: p.manualScore,
+      manuallyGraded: true,
       feedback: p.feedback || null,
     },
   });
@@ -537,7 +538,7 @@ export async function gradeExamAnswerAction(fd: FormData) {
     where: {
       attemptId: answer.attemptId,
       examQuestion: { question: { type: "ESSAY" } },
-      manualScore: 0,
+      manuallyGraded: false,
     },
   });
 
