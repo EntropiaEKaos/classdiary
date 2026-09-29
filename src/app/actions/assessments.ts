@@ -105,6 +105,7 @@ export async function createQuestionBankItemAction(fd: FormData) {
     difficulty: z.enum(["EASY", "MEDIUM", "HARD"]),
     options: z.string().optional(),
     correctAnswer: z.string().optional(),
+    tags: z.string().optional(),
     maxScore: z.coerce.number().positive(),
   }).parse({
     subjectId: String(fd.get("subjectId") ?? "") || undefined,
@@ -115,6 +116,7 @@ export async function createQuestionBankItemAction(fd: FormData) {
     difficulty: String(fd.get("difficulty") ?? "MEDIUM"),
     options: String(fd.get("options") ?? "").trim(),
     correctAnswer: String(fd.get("correctAnswer") ?? "").trim(),
+    tags: String(fd.get("tags") ?? "").trim(),
     maxScore: fd.get("maxScore") || 1,
   });
 
@@ -156,6 +158,7 @@ export async function createQuestionBankItemAction(fd: FormData) {
       difficulty: p.difficulty,
       options,
       correctAnswer: p.correctAnswer || null,
+      tags: p.tags ? p.tags.split(",").map((tag) => tag.trim()).filter(Boolean) : [],
       maxScore: p.maxScore,
       ...(p.competencyId
         ? {
