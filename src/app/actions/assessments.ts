@@ -1,0 +1,612 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import { activeOrganization, requireUser } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { requireModulePermission } from "@/lib/rbac";
+
+async function requireTeacherAssessmentScope(
+  userId: string,
+  orgId: string,
+  classGroupId: string,
+  subjectId: string,
+) {
+  const membership = await db.membership.findFirst({
+    where: { organizationId: orgId, userId },
+  });
+  if (!membership) throw new Error("Usuário sem vínculo com a escola.");
+
+  if (["SCHOOL_ADMIN", "COORDINATOR"].includes(membership.role)) return;
+
+  if (membership.role === "TEACHER") {
+    const assignment = await db.classSubject.findFirst({
+      where: {
+        classGroupId,
+        subjectId,
+        teacherId: userId,
+        classGroup: { organizationId: orgId },
+      },
+    });
+    if (!assignment) throw new Error("Professor sem vínculo com esta turma/disciplina.");
+    return;
+  }
+
+  throw new Error("Sem permissão para gerenciar avaliações.");
+}
+
+export async function createQuestionBankItemAction(fd: FormData) {
+  const { user, org } = await requireModulePermission("assessments", "create");
+
+  const p = z.object({
+    subjectId: z.string().optional(),
+    competencyId: z.string().optional(),
+    type: z.enum(["MULTIPLE_CHOICE", "TRUE_FALSE", "SHORT_TEXT", "ESSAY"]),
+    prompt: z.string().min(3),
+    explanation: z.string().optional(),
+    difficulty: z.enum(["EASY", "MEDIUM", "HARD"]),
+    options: z.string().optional(),
+    correctAnswer: z.string().optional(),
+    maxScore: z.coerce.number().positive(),
+  }).parse({
+    subjectId: String(fd.get("subjectId") ?? "") || undefined,
+    competencyId: String(fd.get("competencyId") ?? "") || undefined,
+    type: String(fd.get("type") ?? "MULTIPLE_CHOICE"),
+    prompt: String(fd.get("prompt") ?? "").trim(),
+    explanation: String(fd.get("explanation") ?? "").trim(),
+    difficulty: String(fd.get("difficulty") ?? "MEDIUM"),
+    options: String(fd.get("options") ?? "").trim(),
+    correctAnswer: String(fd.get("correctAnswer") ?? "").trim(),
+    maxScore: fd.get("maxScore") || 1,
+  });
+
+  let options: string[] | null = null;
+  if (p.type === "MULTIPLE_CHOICE") {
+    options = p.options
+      ? p.options.split("\n").map((x) => x.trim()).filter(Boolean)
+      : [];
+    if (options.length < 2) throw new Error("Questão objetiva precisa de pelo menos duas opções.");
+    if (!p.correctAnswer) throw new Error("Informe a resposta correta.");
+  }
+
+  if (p.type === "TRUE_FALSE" && !["TRUE", "FALSE"].includes(p.correctAnswer ?? "")) {
+    throw new Error("Resposta correta deve ser TRUE ou FALSE.");
+  }
+
+  if (p.subjectId) {
+    const subject = await db.subject.findFirst({
+      where: { id: p.subjectId, organizationId: org.id },
+    });
+    if (!subject) throw new Error("Disciplina inválida.");
+  }
+
+  if (p.competencyId) {
+    const competency = await db.curriculumCompetency.findFirst({
+      where: { id: p.competencyId, organizationId: org.id },
+    });
+    if (!competency) throw new Error("Competência inválida.");
+  }
+
+  await db.questionBankItem.create({
+    data: {
+      organizationId: org.id,
+      subjectId: p.subjectId || null,
+      authorId: user.id,
+      type: p.type,
+      prompt: p.prompt,
+      explanation: p.explanation || null,
+      difficulty: p.difficulty,
+      options,
+      correctAnswer: p.correctAnswer || null,
+      maxScore: p.maxScore,
+      ...(p.competencyId
+        ? {
+            competencies: {
+              create: { competencyId: p.competencyId },
+            },
+          }
+        : {}),
+    },
+  });
+
+  revalidatePath("/dashboard/banco-questoes");
+}
+
+export async function createExamAction(fd: FormData) {
+  const { user, org } = await requireModulePermission("assessments", "create");
+
+  const p = z.object({
+    classGroupId: z.string().min(1),
+    subjectId: z.string().min(1),
+    title: z.string().min(2),
+    description: z.string().optional(),
+    type: z.enum(["EXAM", "QUIZ", "SIMULATION"]),
+    startsAt: z.string().optional(),
+    endsAt: z.string().optional(),
+    durationMinutes: z.coerce.number().int().min(1).optional(),
+    maxAttempts: z.coerce.number().int().min(1).max(10),
+    shuffleQuestions: z.boolean(),
+  }).parse({
+    classGroupId: String(fd.get("classGroupId") ?? ""),
+    subjectId: String(fd.get("subjectId") ?? ""),
+    title: String(fd.get("title") ?? "").trim(),
+    description: String(fd.get("description") ?? "").trim(),
+    type: String(fd.get("type") ?? "EXAM"),
+    startsAt: String(fd.get("startsAt") ?? ""),
+    endsAt: String(fd.get("endsAt") ?? ""),
+    durationMinutes: fd.get("durationMinutes") || undefined,
+    maxAttempts: fd.get("maxAttempts") || 1,
+    shuffleQuestions: fd.get("shuffleQuestions") === "on",
+  });
+
+  const [group, subject] = await Promise.all([
+    db.classGroup.findFirst({
+      where: { id: p.classGroupId, organizationId: org.id },
+    }),
+    db.subject.findFirst({
+      where: { id: p.subjectId, organizationId: org.id },
+    }),
+  ]);
+
+  if (!group || !subject) throw new Error("Turma ou disciplina inválida.");
+
+  await requireTeacherAssessmentScope(
+    user.id,
+    org.id,
+    group.id,
+    subject.id,
+  );
+
+  const exam = await db.exam.create({
+    data: {
+      organizationId: org.id,
+      classGroupId: group.id,
+      subjectId: subject.id,
+      authorId: user.id,
+      title: p.title,
+      description: p.description || null,
+      type: p.type,
+      startsAt: p.startsAt ? new Date(p.startsAt) : null,
+      endsAt: p.endsAt ? new Date(p.endsAt) : null,
+      durationMinutes: p.durationMinutes ?? null,
+      maxAttempts: p.maxAttempts,
+      shuffleQuestions: p.shuffleQuestions,
+    },
+  });
+
+  revalidatePath("/dashboard/provas");
+  return exam.id;
+}
+
+export async function addQuestionToExamAction(fd: FormData) {
+  const { user, org } = await requireModulePermission("assessments", "update");
+
+  const p = z.object({
+    examId: z.string().min(1),
+    questionId: z.string().min(1),
+    points: z.coerce.number().positive(),
+  }).parse({
+    examId: String(fd.get("examId") ?? ""),
+    questionId: String(fd.get("questionId") ?? ""),
+    points: fd.get("points") || 1,
+  });
+
+  const exam = await db.exam.findFirst({
+    where: { id: p.examId, organizationId: org.id },
+  });
+  const question = await db.questionBankItem.findFirst({
+    where: { id: p.questionId, organizationId: org.id, active: true },
+    include: { competencies: true },
+  });
+  if (!exam || !question) throw new Error("Prova ou questão inválida.");
+
+  await requireTeacherAssessmentScope(
+    user.id,
+    org.id,
+    exam.classGroupId,
+    exam.subjectId,
+  );
+
+  const last = await db.examQuestion.findFirst({
+    where: { examId: exam.id },
+    orderBy: { position: "desc" },
+  });
+
+  await db.examQuestion.create({
+    data: {
+      examId: exam.id,
+      questionId: question.id,
+      position: (last?.position ?? 0) + 1,
+      points: p.points,
+      competencies: {
+        create: question.competencies.map((link) => ({
+          competencyId: link.competencyId,
+        })),
+      },
+    },
+  });
+
+  revalidatePath("/dashboard/provas");
+}
+
+export async function generateExamFromCompetencyAction(fd: FormData) {
+  const { user, org } = await requireModulePermission("assessments", "create");
+
+  const p = z.object({
+    classGroupId: z.string().min(1),
+    subjectId: z.string().min(1),
+    competencyId: z.string().min(1),
+    title: z.string().min(2),
+    questionCount: z.coerce.number().int().min(1).max(50),
+  }).parse({
+    classGroupId: String(fd.get("classGroupId") ?? ""),
+    subjectId: String(fd.get("subjectId") ?? ""),
+    competencyId: String(fd.get("competencyId") ?? ""),
+    title: String(fd.get("title") ?? "").trim(),
+    questionCount: fd.get("questionCount") || 5,
+  });
+
+  await requireTeacherAssessmentScope(
+    user.id,
+    org.id,
+    p.classGroupId,
+    p.subjectId,
+  );
+
+  const questions = await db.questionBankItem.findMany({
+    where: {
+      organizationId: org.id,
+      active: true,
+      OR: [{ subjectId: p.subjectId }, { subjectId: null }],
+      competencies: { some: { competencyId: p.competencyId } },
+    },
+    include: { competencies: true },
+    take: p.questionCount,
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!questions.length) {
+    throw new Error("Nenhuma questão encontrada para essa competência.");
+  }
+
+  const exam = await db.exam.create({
+    data: {
+      organizationId: org.id,
+      classGroupId: p.classGroupId,
+      subjectId: p.subjectId,
+      authorId: user.id,
+      title: p.title,
+      type: "SIMULATION",
+      questions: {
+        create: questions.map((question, index) => ({
+          questionId: question.id,
+          position: index + 1,
+          points: question.maxScore,
+          competencies: {
+            create: question.competencies.map((link) => ({
+              competencyId: link.competencyId,
+            })),
+          },
+        })),
+      },
+    },
+  });
+
+  revalidatePath("/dashboard/provas");
+  return exam.id;
+}
+
+export async function publishExamAction(fd: FormData) {
+  const { user, org } = await requireModulePermission("assessments", "update");
+  const id = z.string().min(1).parse(String(fd.get("examId") ?? ""));
+
+  const exam = await db.exam.findFirst({
+    where: { id, organizationId: org.id },
+    include: { questions: true },
+  });
+  if (!exam) throw new Error("Prova inválida.");
+
+  await requireTeacherAssessmentScope(
+    user.id,
+    org.id,
+    exam.classGroupId,
+    exam.subjectId,
+  );
+
+  if (!exam.questions.length) throw new Error("Adicione ao menos uma questão.");
+
+  await db.exam.update({
+    where: { id: exam.id },
+    data: { published: true },
+  });
+
+  revalidatePath("/dashboard/provas");
+}
+
+export async function startExamAttemptAction(fd: FormData) {
+  const user = await requireUser();
+  const org = await activeOrganization();
+  if (!org) throw new Error("Nenhuma escola ativa.");
+
+  const examId = z.string().min(1).parse(String(fd.get("examId") ?? ""));
+
+  const link = await db.studentUser.findFirst({
+    where: { userId: user.id, student: { organizationId: org.id } },
+    include: {
+      student: {
+        include: {
+          enrollments: { where: { active: true } },
+        },
+      },
+    },
+  });
+  if (!link) throw new Error("Aluno não vinculado.");
+
+  const exam = await db.exam.findFirst({
+    where: {
+      id: examId,
+      organizationId: org.id,
+      published: true,
+      classGroupId: {
+        in: link.student.enrollments.map((e) => e.classGroupId),
+      },
+      OR: [{ startsAt: null }, { startsAt: { lte: new Date() } }],
+      AND: [{ OR: [{ endsAt: null }, { endsAt: { gte: new Date() } }] }],
+    },
+  });
+  if (!exam) throw new Error("Prova indisponível.");
+
+  const attempts = await db.examAttempt.count({
+    where: { examId: exam.id, studentId: link.studentId },
+  });
+
+  if (attempts >= exam.maxAttempts) {
+    throw new Error("Limite de tentativas atingido.");
+  }
+
+  const attempt = await db.examAttempt.create({
+    data: {
+      organizationId: org.id,
+      examId: exam.id,
+      studentId: link.studentId,
+    },
+  });
+
+  redirect("/provas/" + exam.id + "/tentativa/" + attempt.id);
+}
+
+function normalize(value: string) {
+  return value.trim().toLowerCase();
+}
+
+export async function submitExamAttemptAction(fd: FormData) {
+  const user = await requireUser();
+  const org = await activeOrganization();
+  if (!org) throw new Error("Nenhuma escola ativa.");
+
+  const attemptId = z.string().min(1).parse(String(fd.get("attemptId") ?? ""));
+
+  const link = await db.studentUser.findFirst({
+    where: { userId: user.id, student: { organizationId: org.id } },
+  });
+  if (!link) throw new Error("Aluno não vinculado.");
+
+  const attempt = await db.examAttempt.findFirst({
+    where: {
+      id: attemptId,
+      organizationId: org.id,
+      studentId: link.studentId,
+      status: "IN_PROGRESS",
+    },
+    include: {
+      exam: {
+        include: {
+          questions: {
+            include: { question: true },
+            orderBy: { position: "asc" },
+          },
+        },
+      },
+    },
+  });
+  if (!attempt) throw new Error("Tentativa inválida.");
+
+  if (
+    attempt.exam.durationMinutes &&
+    Date.now() - attempt.startedAt.getTime() >
+      attempt.exam.durationMinutes * 60_000
+  ) {
+    throw new Error("Tempo da prova expirado.");
+  }
+
+  let autoScore = 0;
+
+  for (const examQuestion of attempt.exam.questions) {
+    const answer = String(fd.get("q_" + examQuestion.id) ?? "").trim();
+    const question = examQuestion.question;
+    let autoCorrect: boolean | null = null;
+    let itemScore = 0;
+
+    if (
+      ["MULTIPLE_CHOICE", "TRUE_FALSE", "SHORT_TEXT"].includes(question.type) &&
+      question.correctAnswer
+    ) {
+      autoCorrect =
+        normalize(answer) === normalize(question.correctAnswer);
+      itemScore = autoCorrect ? Number(examQuestion.points) : 0;
+      autoScore += itemScore;
+    }
+
+    await db.examAnswer.upsert({
+      where: {
+        attemptId_examQuestionId: {
+          attemptId: attempt.id,
+          examQuestionId: examQuestion.id,
+        },
+      },
+      update: {
+        answer: answer || null,
+        autoCorrect,
+        autoScore: itemScore,
+      },
+      create: {
+        attemptId: attempt.id,
+        examQuestionId: examQuestion.id,
+        answer: answer || null,
+        autoCorrect,
+        autoScore: itemScore,
+      },
+    });
+  }
+
+  const hasManual = attempt.exam.questions.some((q) =>
+    ["ESSAY"].includes(q.question.type),
+  );
+
+  await db.examAttempt.update({
+    where: { id: attempt.id },
+    data: {
+      submittedAt: new Date(),
+      status: hasManual ? "PENDING_REVIEW" : "GRADED",
+      autoScore,
+      finalScore: autoScore,
+    },
+  });
+
+  redirect("/provas");
+}
+
+export async function gradeExamAnswerAction(fd: FormData) {
+  const { user, org } = await requireModulePermission("assessments", "update");
+
+  const p = z.object({
+    answerId: z.string().min(1),
+    manualScore: z.coerce.number().min(0),
+    feedback: z.string().optional(),
+  }).parse({
+    answerId: String(fd.get("answerId") ?? ""),
+    manualScore: fd.get("manualScore"),
+    feedback: String(fd.get("feedback") ?? "").trim(),
+  });
+
+  const answer = await db.examAnswer.findFirst({
+    where: {
+      id: p.answerId,
+      attempt: { organizationId: org.id },
+    },
+    include: {
+      examQuestion: true,
+      attempt: { include: { exam: true } },
+    },
+  });
+  if (!answer) throw new Error("Resposta inválida.");
+
+  await requireTeacherAssessmentScope(
+    user.id,
+    org.id,
+    answer.attempt.exam.classGroupId,
+    answer.attempt.exam.subjectId,
+  );
+
+  const max = Number(answer.examQuestion.points);
+  if (p.manualScore > max) throw new Error("Nota acima do valor da questão.");
+
+  await db.examAnswer.update({
+    where: { id: answer.id },
+    data: {
+      manualScore: p.manualScore,
+      feedback: p.feedback || null,
+    },
+  });
+
+  const answers = await db.examAnswer.findMany({
+    where: { attemptId: answer.attemptId },
+  });
+
+  const manualScore = answers.reduce(
+    (sum, item) => sum + Number(item.manualScore),
+    0,
+  );
+  const autoScore = answers.reduce(
+    (sum, item) => sum + Number(item.autoScore),
+    0,
+  );
+
+  const pendingEssay = await db.examAnswer.count({
+    where: {
+      attemptId: answer.attemptId,
+      examQuestion: { question: { type: "ESSAY" } },
+      manualScore: 0,
+    },
+  });
+
+  await db.examAttempt.update({
+    where: { id: answer.attemptId },
+    data: {
+      manualScore,
+      finalScore: autoScore + manualScore,
+      status: pendingEssay === 0 ? "GRADED" : "PENDING_REVIEW",
+    },
+  });
+
+  revalidatePath("/dashboard/correcoes");
+}
+
+export async function applyRubricAssessmentAction(fd: FormData) {
+  const { user, org } = await requireModulePermission("assessments", "update");
+
+  const p = z.object({
+    rubricId: z.string().min(1),
+    studentId: z.string().min(1),
+    submissionId: z.string().optional(),
+    totalScore: z.coerce.number().min(0),
+    feedback: z.string().optional(),
+    details: z.string().optional(),
+  }).parse({
+    rubricId: String(fd.get("rubricId") ?? ""),
+    studentId: String(fd.get("studentId") ?? ""),
+    submissionId: String(fd.get("submissionId") ?? "") || undefined,
+    totalScore: fd.get("totalScore"),
+    feedback: String(fd.get("feedback") ?? "").trim(),
+    details: String(fd.get("details") ?? "").trim(),
+  });
+
+  const [rubric, student] = await Promise.all([
+    db.rubric.findFirst({
+      where: { id: p.rubricId, organizationId: org.id, active: true },
+    }),
+    db.student.findFirst({
+      where: { id: p.studentId, organizationId: org.id },
+    }),
+  ]);
+  if (!rubric || !student) throw new Error("Rubrica ou aluno inválido.");
+
+  if (p.totalScore > Number(rubric.maxScore)) {
+    throw new Error("Pontuação acima da nota máxima da rubrica.");
+  }
+
+  let details: unknown = null;
+  if (p.details) {
+    try {
+      details = JSON.parse(p.details);
+    } catch {
+      throw new Error("Detalhes da rubrica devem ser JSON válido.");
+    }
+  }
+
+  await db.rubricAssessment.create({
+    data: {
+      organizationId: org.id,
+      rubricId: rubric.id,
+      studentId: student.id,
+      submissionId: p.submissionId || null,
+      authorId: user.id,
+      totalScore: p.totalScore,
+      feedback: p.feedback || null,
+      details: details as object | null,
+    },
+  });
+
+  revalidatePath("/dashboard/rubricas-aplicadas");
+}
