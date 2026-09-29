@@ -7,7 +7,7 @@ export default async function Page(){
   const {org}=await requireSchoolRole(["SCHOOL_ADMIN","COORDINATOR"]);
   const now=new Date();const monthStart=new Date(now.getFullYear(),now.getMonth(),1);const monthEnd=new Date(now.getFullYear(),now.getMonth()+1,1);
 
-  const [students,teachers,employees,alerts,received,expenses,overdue,leads,assets,lowStock,loans,transport,canteen,medicalToday,pendingAuthorizations,maintenanceOpen,maintenanceDue,purchaseOpen,surveyScores,activeGoals,achievedGoals,lessonPlans,competencyAssessments,activeInterventions,publishedExams,pendingCorrections,questionCount,rubricAssessmentCount]=await Promise.all([
+  const [students,teachers,employees,alerts,received,expenses,overdue,leads,assets,lowStock,loans,transport,canteen,medicalToday,pendingAuthorizations,maintenanceOpen,maintenanceDue,purchaseOpen,surveyScores,activeGoals,achievedGoals,lessonPlans,competencyAssessments,activeInterventions,publishedExams,pendingCorrections,questionCount,rubricAssessmentCount,autoPostedGrades]=await Promise.all([
     db.student.count({where:{organizationId:org.id,active:true}}),
     db.membership.count({where:{organizationId:org.id,role:"TEACHER"}}),
     db.employee.count({where:{organizationId:org.id,active:true}}),
@@ -35,7 +35,8 @@ export default async function Page(){
     db.exam.count({where:{organizationId:org.id,published:true}}),
     db.examAttempt.count({where:{organizationId:org.id,status:"PENDING_REVIEW"}}),
     db.questionBankItem.count({where:{organizationId:org.id,active:true}}),
-    db.rubricAssessment.count({where:{organizationId:org.id}})
+    db.rubricAssessment.count({where:{organizationId:org.id}}),
+    db.examAttempt.count({where:{organizationId:org.id,gradePostedAt:{not:null}}})
   ]);
 
   const academicAlerts=alerts.filter(s=>{
@@ -85,6 +86,7 @@ export default async function Page(){
       <div className="table-row"><strong>Provas publicadas</strong><span>{publishedExams}</span></div>
       <div className="table-row"><strong>Correções discursivas pendentes</strong><span>{pendingCorrections}</span></div>
       <div className="table-row"><strong>Rubricas aplicadas</strong><span>{rubricAssessmentCount}</span></div>
+      <div className="table-row"><strong>Notas de provas lançadas automaticamente</strong><span>{autoPostedGrades}</span></div>
     </section>
   </main>;
 }
