@@ -20,6 +20,7 @@ import {
 
 const items = [
   ["/dashboard", "Visão geral", LayoutDashboard],
+  ["/dashboard/executivo", "Visão executiva", ChartNoAxesColumnIncreasing],
   ["/dashboard/alunos", "Alunos", GraduationCap],
   ["/dashboard/turmas", "Turmas", School],
   ["/dashboard/matriculas", "Matrículas", Layers3],
@@ -52,6 +53,12 @@ const items = [
   ["/dashboard/permissoes", "Permissões", Users],
   ["/dashboard/templates", "Templates", FileText],
   ["/dashboard/arquivos", "Arquivos", Files],
+  ["/dashboard/rh", "RH", Users],
+  ["/dashboard/patrimonio", "Patrimônio", Files],
+  ["/dashboard/estoque", "Estoque", Layers3],
+  ["/dashboard/biblioteca", "Biblioteca", BookOpenCheck],
+  ["/dashboard/transporte", "Transporte", School],
+  ["/dashboard/cantina", "Cantina", FileText],
   ["/dashboard/configuracoes", "Configurações", FileText],
 ] as const;
 
