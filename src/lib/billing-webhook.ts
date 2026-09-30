@@ -56,6 +56,15 @@ export async function processBillingWebhookEvent(event: BillingWebhookEvent) {
       return { duplicated: true, eventId: persisted.id };
     }
 
+    const claim = await tx.billingEvent.updateMany({
+      where: { id: persisted.id, processedAt: null },
+      data: { processedAt: new Date() },
+    });
+
+    if (claim.count === 0) {
+      return { duplicated: true, eventId: persisted.id };
+    }
+
     if (event.type === "CHECKOUT_APPROVED") {
       const periodEnd = new Date();
       periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
@@ -86,11 +95,6 @@ export async function processBillingWebhookEvent(event: BillingWebhookEvent) {
         data: { status: "CANCELED" },
       });
     }
-
-    await tx.billingEvent.update({
-      where: { id: persisted.id },
-      data: { processedAt: new Date() },
-    });
 
     await tx.auditLog.create({
       data: {
