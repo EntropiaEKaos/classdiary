@@ -37,6 +37,7 @@ export async function GET() {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": 'attachment; filename="classdiary-alunos.csv"',
+    "Cache-Control": "private, no-store",
     },
   });
 }
