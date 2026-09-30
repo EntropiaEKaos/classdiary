@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireModulePermission } from "@/lib/rbac";
+import { assertTrustedMutationOrigin } from "@/lib/security";
 
 export async function createEmployeeAction(fd:FormData){
   const {org}=await requireModulePermission("hr","create");
@@ -66,19 +67,20 @@ export async function createInventoryItemAction(fd:FormData){
 }
 
 export async function moveInventoryAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("inventory","update");
   const p=z.object({itemId:z.string().min(1),type:z.enum(["IN","OUT","ADJUST"]),quantity:z.coerce.number().positive(),unitCost:z.coerce.number().min(0).optional(),reason:z.string().optional()}).parse({
     itemId:String(fd.get("itemId")??""),type:String(fd.get("type")??"IN"),quantity:fd.get("quantity"),unitCost:fd.get("unitCost")||undefined,reason:String(fd.get("reason")??"").trim()
   });
-  const item=await db.inventoryItem.findFirst({where:{id:p.itemId,organizationId:org.id}});
-  if(!item) throw new Error("Item inválido");
-  const current=Number(item.quantity);
-  const next=p.type==="IN"?current+p.quantity:p.type==="OUT"?current-p.quantity:p.quantity;
-  if(next<0) throw new Error("Estoque insuficiente");
-  await db.$transaction([
-    db.inventoryMovement.create({data:{organizationId:org.id,itemId:item.id,type:p.type,quantity:p.quantity,unitCost:p.unitCost??null,reason:p.reason||null}}),
-    db.inventoryItem.update({where:{id:item.id},data:{quantity:next,...(p.unitCost!==undefined?{averageCost:p.unitCost}:{})}})
-  ]);
+  await db.$transaction(async tx=>{
+    const item=await tx.inventoryItem.findFirst({where:{id:p.itemId,organizationId:org.id}});
+    if(!item) throw new Error("Item inválido");
+    const current=Number(item.quantity);
+    const next=p.type==="IN"?current+p.quantity:p.type==="OUT"?current-p.quantity:p.quantity;
+    if(next<0) throw new Error("Estoque insuficiente");
+    await tx.inventoryMovement.create({data:{organizationId:org.id,itemId:item.id,type:p.type,quantity:p.quantity,unitCost:p.unitCost??null,reason:p.reason||null}});
+    await tx.inventoryItem.update({where:{id:item.id},data:{quantity:next,...(p.unitCost!==undefined?{averageCost:p.unitCost}:{})}});
+  },{isolationLevel:"Serializable"});
   revalidatePath("/dashboard/estoque");
 }
 
@@ -93,19 +95,22 @@ export async function createLibraryBookAction(fd:FormData){
 }
 
 export async function loanLibraryBookAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("library","update");
   const p=z.object({bookId:z.string().min(1),studentId:z.string().min(1),dueAt:z.string().min(1)}).parse({
     bookId:String(fd.get("bookId")??""),studentId:String(fd.get("studentId")??""),dueAt:String(fd.get("dueAt")??"")
   });
-  const [book,student]=await Promise.all([
-    db.libraryBook.findFirst({where:{id:p.bookId,organizationId:org.id,active:true}}),
-    db.student.findFirst({where:{id:p.studentId,organizationId:org.id,active:true}})
-  ]);
-  if(!book||!student||book.copiesAvailable<1) throw new Error("Livro/aluno inválido ou sem exemplar disponível");
-  await db.$transaction([
-    db.libraryLoan.create({data:{organizationId:org.id,bookId:book.id,studentId:student.id,dueAt:new Date(p.dueAt)}}),
-    db.libraryBook.update({where:{id:book.id},data:{copiesAvailable:{decrement:1}}})
-  ]);
+  const dueAt=new Date(p.dueAt);
+  if(Number.isNaN(dueAt.getTime())) throw new Error("Data de devolução inválida");
+  await db.$transaction(async tx=>{
+    const [book,student]=await Promise.all([
+      tx.libraryBook.findFirst({where:{id:p.bookId,organizationId:org.id,active:true}}),
+      tx.student.findFirst({where:{id:p.studentId,organizationId:org.id,active:true}})
+    ]);
+    if(!book||!student||book.copiesAvailable<1) throw new Error("Livro/aluno inválido ou sem exemplar disponível");
+    await tx.libraryLoan.create({data:{organizationId:org.id,bookId:book.id,studentId:student.id,dueAt}});
+    await tx.libraryBook.update({where:{id:book.id},data:{copiesAvailable:{decrement:1}}});
+  },{isolationLevel:"Serializable"});
   revalidatePath("/dashboard/biblioteca");
 }
 
@@ -161,17 +166,24 @@ export async function createCanteenItemAction(fd:FormData){
 }
 
 export async function createCanteenSaleAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("canteen","create");
   const p=z.object({itemId:z.string().min(1),studentId:z.string().optional(),quantity:z.coerce.number().positive(),paymentMethod:z.enum(["PIX","CASH","CARD","ACCOUNT"])}).parse({
     itemId:String(fd.get("itemId")??""),studentId:String(fd.get("studentId")??"")||undefined,quantity:fd.get("quantity"),paymentMethod:String(fd.get("paymentMethod")??"CASH")
   });
-  const item=await db.canteenItem.findFirst({where:{id:p.itemId,organizationId:org.id,active:true}});
-  if(!item||Number(item.stockQuantity)<p.quantity) throw new Error("Produto inválido ou estoque insuficiente");
-  const total=Number(item.price)*p.quantity;
   await db.$transaction(async tx=>{
-    const order=await tx.canteenOrder.create({data:{organizationId:org.id,studentId:p.studentId||null,status:"PAID",totalAmount:total,paymentMethod:p.paymentMethod,paidAt:new Date()}});
+    const item=await tx.canteenItem.findFirst({where:{id:p.itemId,organizationId:org.id,active:true}});
+    if(!item||Number(item.stockQuantity)<p.quantity) throw new Error("Produto inválido ou estoque insuficiente");
+    let studentId:string|null=null;
+    if(p.studentId){
+      const student=await tx.student.findFirst({where:{id:p.studentId,organizationId:org.id,active:true}});
+      if(!student) throw new Error("Aluno inválido");
+      studentId=student.id;
+    }
+    const total=Number(item.price)*p.quantity;
+    const order=await tx.canteenOrder.create({data:{organizationId:org.id,studentId,status:"PAID",totalAmount:total,paymentMethod:p.paymentMethod,paidAt:new Date()}});
     await tx.canteenOrderItem.create({data:{orderId:order.id,itemId:item.id,quantity:p.quantity,unitPrice:item.price}});
     await tx.canteenItem.update({where:{id:item.id},data:{stockQuantity:{decrement:p.quantity}}});
-  });
+  },{isolationLevel:"Serializable"});
   revalidatePath("/dashboard/cantina");
 }
