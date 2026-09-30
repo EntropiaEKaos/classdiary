@@ -98,7 +98,7 @@ export async function withPlanCapacity<T>(
   operation: (tx: Prisma.TransactionClient) => Promise<T>,
   requested = 1,
 ) {
-  if (requested < 1) return db.$transaction(operation);
+  if (requested < 0) throw new Error("Quantidade de capacidade inválida.");
 
   return retrySerializable(() => db.$transaction(async (tx) => {
     const locked = await tx.$queryRaw<
@@ -125,7 +125,7 @@ export async function withPlanCapacity<T>(
     const current = await currentUsage(tx, organizationId, resource);
     const limit = resourceLimit(plan, subscription.seats, resource);
 
-    if (limit !== null && current + requested > limit) {
+    if (requested > 0 && limit !== null && current + requested > limit) {
       const labels: Record<PlanResource, string> = {
         students: "alunos ativos",
         classes: "turmas",
