@@ -215,6 +215,34 @@ async function main() {
     },
   });
 
+  const foreignOrg = await db.organization.upsert({
+    where: { slug: "escola-isolada-e2e" },
+    update: { active: true },
+    create: {
+      id: "e2e-other-org",
+      name: "Escola Isolada E2E",
+      slug: "escola-isolada-e2e",
+      active: true,
+    },
+  });
+
+  await db.student.upsert({
+    where: {
+      organizationId_registration: {
+        organizationId: foreignOrg.id,
+        registration: "E2E-FOREIGN-001",
+      },
+    },
+    update: { active: true },
+    create: {
+      id: "e2e-other-student",
+      organizationId: foreignOrg.id,
+      name: "Aluno Outro Tenant E2E",
+      registration: "E2E-FOREIGN-001",
+      active: true,
+    },
+  });
+
   console.log("Seed concluído.");
   console.log("Admin:", ownerEmail);
   console.log("Senha de demonstração:", ownerPassword);
