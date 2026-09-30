@@ -1,3 +1,4 @@
+import { reconcileSaasBillingAction } from "@/app/actions/subscription-checkout";
 import { requireSchoolRole } from "@/lib/rbac";
 import { getOrganizationPlanUsage } from "@/lib/plans";
 import { subscriptionAccessMessage, subscriptionAccessState } from "@/lib/subscription-lifecycle";
@@ -71,6 +72,11 @@ export default async function PlanPage() {
           A base de checkout já está preparada com auditoria e idempotência. A ativação
           online ficará disponível quando um gateway de cobrança for configurado.
         </p>
+        {checkouts.some((checkout) => checkout.providerSubscriptionId) ? (
+          <form action={reconcileSaasBillingAction} style={{ marginBottom: 16 }}>
+            <button className="btn btn-light">Reconciliar cobrança</button>
+          </form>
+        ) : null}
         {checkouts.length ? (
           <div className="table-list">
             {checkouts.map((checkout) => (
