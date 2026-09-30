@@ -334,42 +334,12 @@ test("concurrent enrollment keeps one active class per student and school year",
   }
 });
 
-test("concurrent duplicate payment is idempotent by external reference", async ({ page }) => {
+test("concurrent duplicate payment is idempotent by external reference", async () => {
   const suffix = Date.now().toString();
-  const studentName = `Pagamento Concorrente ${suffix}`;
   const registration = `PAY-${suffix}`;
-  const contractTitle = `Contrato Concorrente ${suffix}`;
   const externalReference = `E2E-IDEMP-${suffix}`;
 
-  await loginAsAdmin(page);
-
-  await page.goto("/dashboard/alunos");
-  await page.locator('input[name="name"]').fill(studentName);
-  await page.locator('input[name="registration"]').fill(registration);
-  await page.getByRole("button", { name: "Cadastrar" }).click();
-
-  await page.goto("/dashboard/financeiro/contratos");
-  await page.locator('select[name="studentId"]').selectOption({
-    label: studentName + " · " + registration,
-  });
-  await page.locator('input[name="title"]').fill(contractTitle);
-  await page.locator('input[name="startsAt"]').fill("2026-01-01");
-  await page.locator('input[name="monthlyAmount"]').fill("199.90");
-  await page.getByRole("button", { name: "Criar contrato" }).click();
-
-  const contract = page.locator(".notice").filter({ hasText: contractTitle });
-  await contract.locator('input[name="month"]').fill("11");
-  await contract.locator('input[name="year"]').fill("2026");
-  await contract.getByRole("button", { name: "Gerar mensalidade" }).click();
-
-  const [invoice, org, actor] = await Promise.all([
-    db.invoice.findFirst({
-      where: {
-        student: { registration },
-        reference: { endsWith: "-2026-11" },
-      },
-      select: { id: true },
-    }),
+  const [org, actor] = await Promise.all([
     db.organization.findUnique({ where: { slug: "escola-demo" } }),
     db.user.findUnique({
       where: {
@@ -378,36 +348,77 @@ test("concurrent duplicate payment is idempotent by external reference", async (
     }),
   ]);
 
-  expect(invoice).not.toBeNull();
   expect(org).not.toBeNull();
   expect(actor).not.toBeNull();
 
-  const input = {
-    organizationId: org!.id,
-    userId: actor!.id,
-    invoiceId: invoice!.id,
-    amount: 199.9,
-    method: "PIX" as const,
-    externalReference,
-  };
+  let studentId: string | null = null;
 
-  const [first, second] = await Promise.all([
-    recordPayment(input),
-    recordPayment(input),
-  ]);
+  try {
+    const student = await db.student.create({
+      data: {
+        organizationId: org!.id,
+        name: `Pagamento Concorrente ${suffix}`,
+        registration,
+        active: true,
+      },
+    });
+    studentId = student.id;
 
-  expect(first.invoiceId).toBe(invoice!.id);
-  expect(second.invoiceId).toBe(invoice!.id);
+    const contract = await db.studentContract.create({
+      data: {
+        organizationId: org!.id,
+        studentId: student.id,
+        title: `Contrato Concorrente ${suffix}`,
+        startsAt: new Date("2026-01-01T00:00:00.000Z"),
+        monthlyAmount: 199.9,
+        status: "ACTIVE",
+      },
+    });
 
-  const [payments, receipts, finalInvoice] = await Promise.all([
-    db.payment.count({ where: { invoiceId: invoice!.id, externalReference } }),
-    db.receipt.count({ where: { invoiceId: invoice!.id } }),
-    db.invoice.findUnique({ where: { id: invoice!.id }, select: { status: true } }),
-  ]);
+    const invoice = await db.invoice.create({
+      data: {
+        organizationId: org!.id,
+        studentId: student.id,
+        contractId: contract.id,
+        reference: `${registration}-2026-11`,
+        description: "Mensalidade 11/2026",
+        dueAt: new Date("2026-11-10T12:00:00.000Z"),
+        amount: 199.9,
+        status: "OPEN",
+      },
+    });
 
-  expect(payments).toBe(1);
-  expect(receipts).toBe(1);
-  expect(finalInvoice?.status).toBe("PAID");
+    const input = {
+      organizationId: org!.id,
+      userId: actor!.id,
+      invoiceId: invoice.id,
+      amount: 199.9,
+      method: "PIX" as const,
+      externalReference,
+    };
+
+    const [first, second] = await Promise.all([
+      recordPayment(input),
+      recordPayment(input),
+    ]);
+
+    expect(first.invoiceId).toBe(invoice.id);
+    expect(second.invoiceId).toBe(invoice.id);
+
+    const [payments, receipts, finalInvoice] = await Promise.all([
+      db.payment.count({ where: { invoiceId: invoice.id, externalReference } }),
+      db.receipt.count({ where: { invoiceId: invoice.id } }),
+      db.invoice.findUnique({ where: { id: invoice.id }, select: { status: true } }),
+    ]);
+
+    expect(payments).toBe(1);
+    expect(receipts).toBe(1);
+    expect(finalInvoice?.status).toBe("PAID");
+  } finally {
+    if (studentId) {
+      await db.student.delete({ where: { id: studentId } }).catch(() => undefined);
+    }
+  }
 });
 
 test("SaaS checkout is idempotent under concurrent duplicate requests", async () => {
