@@ -1,5 +1,7 @@
 import { expect, Page, test } from "@playwright/test";
 import { db } from "../src/lib/db";
+import { createSaasCheckout } from "../src/lib/saas-checkout";
+import { recordPayment } from "../src/lib/payment-service";
 
 async function loginAsAdmin(page: Page) {
   await page.goto("/login");
@@ -332,102 +334,156 @@ test("concurrent enrollment keeps one active class per student and school year",
   }
 });
 
-test("concurrent duplicate payment is idempotent by external reference", async ({ browser }) => {
+test("concurrent duplicate payment is idempotent by external reference", async () => {
   const suffix = Date.now().toString();
-  const studentName = `Pagamento Concorrente ${suffix}`;
   const registration = `PAY-${suffix}`;
-  const contractTitle = `Contrato Concorrente ${suffix}`;
   const externalReference = `E2E-IDEMP-${suffix}`;
 
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const pageA = await contextA.newPage();
-  const pageB = await contextB.newPage();
+  const [org, actor] = await Promise.all([
+    db.organization.findUnique({ where: { slug: "escola-demo" } }),
+    db.user.findUnique({
+      where: {
+        email: process.env.SEED_OWNER_EMAIL ?? "admin@classdiary.local",
+      },
+    }),
+  ]);
+
+  expect(org).not.toBeNull();
+  expect(actor).not.toBeNull();
+
+  let studentId: string | null = null;
 
   try {
-    await Promise.all([loginAsAdmin(pageA), loginAsAdmin(pageB)]);
-
-    await pageA.goto("/dashboard/alunos");
-    await pageA.locator('input[name="name"]').fill(studentName);
-    await pageA.locator('input[name="registration"]').fill(registration);
-    await pageA.getByRole("button", { name: "Cadastrar" }).click();
-
-    await pageA.goto("/dashboard/financeiro/contratos");
-    await pageA.locator('select[name="studentId"]').selectOption({
-      label: studentName + " · " + registration,
-    });
-    await pageA.locator('input[name="title"]').fill(contractTitle);
-    await pageA.locator('input[name="startsAt"]').fill("2026-01-01");
-    await pageA.locator('input[name="monthlyAmount"]').fill("199.90");
-    await pageA.getByRole("button", { name: "Criar contrato" }).click();
-
-    const contract = pageA.locator(".notice").filter({ hasText: contractTitle });
-    await contract.locator('input[name="month"]').fill("11");
-    await contract.locator('input[name="year"]').fill("2026");
-    await contract.getByRole("button", { name: "Gerar mensalidade" }).click();
-    await pageA.waitForLoadState("networkidle");
-
-    const invoice = await db.invoice.findFirst({
-      where: {
-        student: { registration },
-        reference: { endsWith: "-2026-11" },
+    const student = await db.student.create({
+      data: {
+        organizationId: org!.id,
+        name: `Pagamento Concorrente ${suffix}`,
+        registration,
+        active: true,
       },
-      select: { id: true },
     });
-    expect(invoice).not.toBeNull();
+    studentId = student.id;
 
-    await Promise.all([
-      pageA.goto("/dashboard/financeiro/cobrancas"),
-      pageB.goto("/dashboard/financeiro/cobrancas"),
+    const contract = await db.studentContract.create({
+      data: {
+        organizationId: org!.id,
+        studentId: student.id,
+        title: `Contrato Concorrente ${suffix}`,
+        startsAt: new Date("2026-01-01T00:00:00.000Z"),
+        monthlyAmount: 199.9,
+        status: "ACTIVE",
+      },
+    });
+
+    const invoice = await db.invoice.create({
+      data: {
+        organizationId: org!.id,
+        studentId: student.id,
+        contractId: contract.id,
+        reference: `${registration}-2026-11`,
+        description: "Mensalidade 11/2026",
+        dueAt: new Date("2026-11-10T12:00:00.000Z"),
+        amount: 199.9,
+        status: "OPEN",
+      },
+    });
+
+    const input = {
+      organizationId: org!.id,
+      userId: actor!.id,
+      invoiceId: invoice.id,
+      amount: 199.9,
+      method: "PIX" as const,
+      externalReference,
+    };
+
+    const [first, second] = await Promise.all([
+      recordPayment(input),
+      recordPayment(input),
     ]);
 
-    const paymentFormA = pageA.locator(
-      `form:has(input[name="invoiceId"][value="${invoice!.id}"])`,
-    );
-    const paymentFormB = pageB.locator(
-      `form:has(input[name="invoiceId"][value="${invoice!.id}"])`,
-    );
-
-    await expect(paymentFormA).toHaveCount(1);
-    await expect(paymentFormB).toHaveCount(1);
-
-    for (const form of [paymentFormA, paymentFormB]) {
-      await form.locator('input[name="amount"]').fill("199.90");
-      await form.locator('select[name="method"]').selectOption("PIX");
-      await form.locator('input[name="externalReference"]').fill(externalReference);
-    }
-
-    await Promise.all([
-      paymentFormA.evaluate((form) => (form as HTMLFormElement).requestSubmit()),
-      paymentFormB.evaluate((form) => (form as HTMLFormElement).requestSubmit()),
-    ]);
-
-    await expect.poll(
-      async () =>
-        db.payment.count({
-          where: { invoiceId: invoice!.id, externalReference },
-        }),
-      { timeout: 5_000 },
-    ).toBe(1);
+    expect(first.invoiceId).toBe(invoice.id);
+    expect(second.invoiceId).toBe(invoice.id);
 
     const [payments, receipts, finalInvoice] = await Promise.all([
-      db.payment.count({ where: { invoiceId: invoice!.id, externalReference } }),
-      db.receipt.count({ where: { invoiceId: invoice!.id } }),
-      db.invoice.findUnique({ where: { id: invoice!.id }, select: { status: true } }),
+      db.payment.count({ where: { invoiceId: invoice.id, externalReference } }),
+      db.receipt.count({ where: { invoiceId: invoice.id } }),
+      db.invoice.findUnique({ where: { id: invoice.id }, select: { status: true } }),
     ]);
 
     expect(payments).toBe(1);
     expect(receipts).toBe(1);
     expect(finalInvoice?.status).toBe("PAID");
   } finally {
-    await contextA.close();
-    await contextB.close();
+    if (studentId) {
+      await db.student.delete({ where: { id: studentId } }).catch(() => undefined);
+    }
   }
 });
 
+test("SaaS checkout is idempotent under concurrent duplicate requests", async () => {
+  const org = await db.organization.findUnique({
+    where: { slug: "escola-demo" },
+    include: { memberships: { take: 1 } },
+  });
+  expect(org).not.toBeNull();
+  expect(org!.memberships.length).toBeGreaterThan(0);
 
+  const key = `checkout-e2e-${Date.now()}`;
+  let providerCalls = 0;
+  const provider = {
+    async createCheckout() {
+      providerCalls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      return {
+        provider: "E2E_FAKE",
+        externalReference: `provider-${key}`,
+        checkoutUrl: "https://example.test/checkout",
+      };
+    },
+  };
 
+  try {
+    const [first, second] = await Promise.all([
+      createSaasCheckout({
+        organizationId: org!.id,
+        requestedByUserId: org!.memberships[0].userId,
+        plan: "PRO",
+        seats: 50,
+        customerEmail: "billing-e2e@example.local",
+        returnUrl: "http://127.0.0.1:3000/dashboard/plano",
+        idempotencyKey: key,
+        provider,
+      }),
+      createSaasCheckout({
+        organizationId: org!.id,
+        requestedByUserId: org!.memberships[0].userId,
+        plan: "PRO",
+        seats: 50,
+        customerEmail: "billing-e2e@example.local",
+        returnUrl: "http://127.0.0.1:3000/dashboard/plano",
+        idempotencyKey: key,
+        provider,
+      }),
+    ]);
 
+    expect(first.id).toBe(second.id);
+    expect(first.status).toBe("READY");
+    expect(second.status).toBe("READY");
+    expect(providerCalls).toBe(1);
+
+    const rows = await db.billingCheckout.findMany({
+      where: { idempotencyKey: key },
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].provider).toBe("E2E_FAKE");
+    expect(rows[0].checkoutUrl).toBe("https://example.test/checkout");
+  } finally {
+    await db.billingCheckout.deleteMany({
+      where: { idempotencyKey: key },
+    });
+  }
+});
 
 test("trial lifecycle allows grace period and blocks mutations after grace", async ({ page }) => {
   const org = await db.organization.findUnique({

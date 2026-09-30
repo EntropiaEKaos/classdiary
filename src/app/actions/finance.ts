@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireModulePermission, requireSchoolRole } from "@/lib/rbac";
 import { assertTrustedMutationOrigin } from "@/lib/security";
-import { retrySerializable } from "@/lib/transaction-retry";
+import { recordPayment } from "@/lib/payment-service";
 
 function calculateDiscount(
   amount: number,
@@ -256,126 +256,15 @@ export async function registerPaymentAction(fd: FormData) {
     notes: String(fd.get("notes") ?? "").trim(),
   });
 
-  const settings = await db.financialSettings.findUnique({
-    where: { organizationId: org.id },
+  const result = await recordPayment({
+    organizationId: org.id,
+    userId: user.id,
+    invoiceId: p.invoiceId,
+    amount: p.amount,
+    method: p.method,
+    externalReference: p.externalReference || null,
+    notes: p.notes || null,
   });
-
-  const prefix = settings?.receiptPrefix ?? "REC";
-
-  const result = await retrySerializable(() => db.$transaction(
-    async (tx) => {
-      await tx.$queryRaw`
-        SELECT "id"
-        FROM "Invoice"
-        WHERE "id" = ${p.invoiceId}
-          AND "organizationId" = ${org.id}
-        FOR UPDATE
-      `;
-
-      if (p.externalReference) {
-        const existingPayment = await tx.payment.findFirst({
-          where: {
-            organizationId: org.id,
-            invoiceId: p.invoiceId,
-            externalReference: p.externalReference,
-          },
-        });
-
-        if (existingPayment) {
-          if (
-            Number(existingPayment.amount) !== p.amount ||
-            existingPayment.method !== p.method
-          ) {
-            throw new Error("Referência externa já utilizada com dados diferentes.");
-          }
-
-          return { invoiceId: existingPayment.invoiceId };
-        }
-      }
-
-      const invoice = await tx.invoice.findFirst({
-        where: {
-          id: p.invoiceId,
-          organizationId: org.id,
-          status: { in: ["OPEN", "OVERDUE", "PARTIAL"] },
-        },
-        include: { payments: true },
-      });
-
-      if (!invoice) throw new Error("Cobrança inválida ou já quitada.");
-
-      const currentPaid = invoice.payments.reduce(
-        (sum, payment) => sum + Number(payment.amount),
-        0,
-      );
-
-      const targetAmount =
-        Number(invoice.amount) -
-        Number(invoice.discountAmount) +
-        Number(invoice.fineAmount) +
-        Number(invoice.interestAmount);
-
-      if (currentPaid + p.amount > targetAmount + 0.01) {
-        throw new Error("Pagamento excede o saldo da cobrança.");
-      }
-
-      const payment = await tx.payment.create({
-        data: {
-          organizationId: org.id,
-          studentId: invoice.studentId,
-          invoiceId: invoice.id,
-          amount: p.amount,
-          method: p.method,
-          externalReference: p.externalReference || null,
-          notes: p.notes || null,
-        },
-      });
-
-      const newPaid = currentPaid + p.amount;
-      const settled = newPaid >= targetAmount - 0.01;
-
-      await tx.invoice.update({
-        where: { id: invoice.id },
-        data: settled
-          ? { status: "PAID", paidAt: new Date() }
-          : { status: "PARTIAL", paidAt: null },
-      });
-
-      const receiptNumber =
-        `${prefix}-${Date.now()}-${payment.id.slice(-6).toUpperCase()}`;
-
-      const receipt = await tx.receipt.create({
-        data: {
-          organizationId: org.id,
-          studentId: invoice.studentId,
-          invoiceId: invoice.id,
-          paymentId: payment.id,
-          number: receiptNumber,
-          amount: p.amount,
-          description: `Pagamento de ${invoice.description}`,
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          userId: user.id,
-          organizationId: org.id,
-          action: "PAY",
-          entity: "Invoice",
-          entityId: invoice.id,
-          metadata: {
-            paymentId: payment.id,
-            receiptId: receipt.id,
-            amount: p.amount,
-            method: p.method,
-          },
-        },
-      });
-
-      return { invoiceId: invoice.id };
-    },
-    { isolationLevel: "ReadCommitted" },
-  ));
 
   revalidatePath("/dashboard/financeiro/cobrancas");
   revalidatePath("/dashboard/financeiro");

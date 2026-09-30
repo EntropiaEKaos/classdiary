@@ -1,6 +1,7 @@
 import { requireSchoolRole } from "@/lib/rbac";
 import { getOrganizationPlanUsage } from "@/lib/plans";
 import { subscriptionAccessMessage, subscriptionAccessState } from "@/lib/subscription-lifecycle";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,14 @@ function quota(current: number, limit: number | null) {
 
 export default async function PlanPage() {
   const { org } = await requireSchoolRole(["SCHOOL_ADMIN", "COORDINATOR"]);
-  const snapshot = await getOrganizationPlanUsage(org.id);
+  const [snapshot, checkouts] = await Promise.all([
+    getOrganizationPlanUsage(org.id),
+    db.billingCheckout.findMany({
+      where: { organizationId: org.id },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    }),
+  ]);
   const subscription = snapshot.subscription;
   const lifecycle = subscription
     ? subscriptionAccessState(subscription)
@@ -56,6 +64,32 @@ export default async function PlanPage() {
           </div>
         </div>
       </div>
+
+      <section className="table-card" style={{ marginTop: 20 }}>
+        <h3>Checkout da assinatura</h3>
+        <p className="muted">
+          A base de checkout já está preparada com auditoria e idempotência. A ativação
+          online ficará disponível quando um gateway de cobrança for configurado.
+        </p>
+        {checkouts.length ? (
+          <div className="table-list">
+            {checkouts.map((checkout) => (
+              <div className="table-row" key={checkout.id}>
+                <div>
+                  <strong>{checkout.plan}</strong>
+                  <div className="muted">
+                    {checkout.seats} usuários · {checkout.status}
+                    {checkout.provider ? ` · ${checkout.provider}` : ""}
+                  </div>
+                </div>
+                <span className="muted">
+                  {checkout.createdAt.toLocaleDateString("pt-BR")}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </section>
 
       <section className="table-card" style={{ marginTop: 20 }}>
         <h3>Como os limites funcionam</h3>
