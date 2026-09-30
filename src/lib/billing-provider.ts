@@ -1,3 +1,4 @@
+import { MercadoPagoBillingProvider, mercadoPagoConfigFromEnv } from "@/lib/mercado-pago-provider";
 export type CheckoutRequest = {
   organizationId: string;
   externalReference: string;
@@ -16,9 +17,18 @@ export type CheckoutSession = {
 export type BillingWebhookEvent = {
   provider: string;
   providerEventId: string;
-  type: "CHECKOUT_APPROVED" | "PAYMENT_FAILED" | "SUBSCRIPTION_CANCELED";
+  type:
+    | "CHECKOUT_APPROVED"
+    | "PAYMENT_FAILED"
+    | "SUBSCRIPTION_CANCELED"
+    | "NOOP";
   externalReference: string;
   payload?: Record<string, unknown>;
+};
+
+export type WebhookContext = {
+  dataId?: string | null;
+  topic?: string | null;
 };
 
 export interface BillingProvider {
@@ -26,6 +36,7 @@ export interface BillingProvider {
   verifyWebhook?(
     body: string,
     headers: Headers,
+    context: WebhookContext,
   ): Promise<BillingWebhookEvent>;
 }
 
@@ -36,5 +47,9 @@ class UnconfiguredBillingProvider implements BillingProvider {
 }
 
 export function getBillingProvider(): BillingProvider {
+  const provider = process.env.BILLING_PROVIDER?.trim().toLowerCase();
+  if (provider === "mercado_pago") {
+    return new MercadoPagoBillingProvider(mercadoPagoConfigFromEnv());
+  }
   return new UnconfiguredBillingProvider();
 }
