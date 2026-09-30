@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireModulePermission, requireSchoolRole } from "@/lib/rbac";
+import { assertTrustedMutationOrigin } from "@/lib/security";
 
 export async function addLeadInteractionAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("crm", "create");
 
   const p = z.object({
@@ -32,7 +34,13 @@ export async function addLeadInteractionAction(fd: FormData) {
       authorId: user.id,
       type: p.type,
       note: p.note,
-      nextFollowUpAt: p.nextFollowUpAt ? new Date(p.nextFollowUpAt) : null,
+      nextFollowUpAt: p.nextFollowUpAt
+      ? (() => {
+          const date = new Date(p.nextFollowUpAt);
+          if (Number.isNaN(date.getTime())) throw new Error("Data de follow-up inválida.");
+          return date;
+        })()
+      : null,
     },
   });
 
@@ -40,6 +48,7 @@ export async function addLeadInteractionAction(fd: FormData) {
 }
 
 export async function upsertPermissionOverrideAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN"]);
 
   const p = z.object({
@@ -102,6 +111,7 @@ export async function upsertPermissionOverrideAction(fd: FormData) {
 }
 
 export async function createDocumentTemplateAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("secretary", "create");
 
   const p = z.object({
@@ -152,12 +162,13 @@ export async function createDocumentTemplateAction(fd: FormData) {
 }
 
 export async function registerFileAssetAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireUserStorageContext();
 
   const p = z.object({
     originalName: z.string().min(1),
     mimeType: z.string().min(1),
-    sizeBytes: z.coerce.number().int().min(0),
+    sizeBytes: z.coerce.number().int().min(0).max(25 * 1024 * 1024),
     publicUrl: z.string().url(),
     category: z.string().min(1),
     entityType: z.string().optional(),
@@ -171,6 +182,47 @@ export async function registerFileAssetAction(fd: FormData) {
     entityType: String(fd.get("entityType") ?? "").trim(),
     entityId: String(fd.get("entityId") ?? "").trim(),
   });
+
+  const url = new URL(p.publicUrl);
+  if (
+    url.protocol !== "https:" &&
+    !(process.env.NODE_ENV !== "production" && url.protocol === "http:")
+  ) {
+    throw new Error("URL de arquivo precisa usar HTTPS.");
+  }
+
+  if (p.entityId && !p.entityType) {
+    throw new Error("Tipo da entidade é obrigatório quando entityId é informado.");
+  }
+
+  if (p.entityType && p.entityId) {
+    const validEntity =
+      p.entityType === "Student"
+        ? await db.student.findFirst({
+            where: { id: p.entityId, organizationId: org.id },
+            select: { id: true },
+          })
+        : p.entityType === "AcademicDocument"
+          ? await db.academicDocument.findFirst({
+              where: { id: p.entityId, organizationId: org.id },
+              select: { id: true },
+            })
+          : p.entityType === "Assignment"
+            ? await db.assignment.findFirst({
+                where: { id: p.entityId, organizationId: org.id },
+                select: { id: true },
+              })
+            : p.entityType === "Receipt"
+              ? await db.receipt.findFirst({
+                  where: { id: p.entityId, organizationId: org.id },
+                  select: { id: true },
+                })
+              : null;
+
+    if (!validEntity) {
+      throw new Error("Entidade de arquivo inválida para esta escola.");
+    }
+  }
 
   const storageKey = org.id + "/" + Date.now() + "-" + p.originalName.replace(/[^a-zA-Z0-9._-]/g, "_");
 
@@ -197,6 +249,7 @@ async function requireUserStorageContext() {
 }
 
 export async function createCollectionRuleAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("finance", "create");
 
   const p = z.object({
@@ -217,8 +270,8 @@ export async function createCollectionRuleAction(fd: FormData) {
     data: {
       organizationId: org.id,
       name: p.name,
-      daysBeforeDue: p.daysBeforeDue ? Number(p.daysBeforeDue) : null,
-      daysAfterDue: p.daysAfterDue ? Number(p.daysAfterDue) : null,
+      daysBeforeDue: p.daysBeforeDue ? Math.max(0, Number(p.daysBeforeDue)) : null,
+      daysAfterDue: p.daysAfterDue ? Math.max(0, Number(p.daysAfterDue)) : null,
       channel: p.channel,
       messageTemplate: p.messageTemplate,
     },
@@ -238,6 +291,7 @@ export async function createCollectionRuleAction(fd: FormData) {
 }
 
 export async function runCollectionAutomationAction() {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("finance", "update");
 
   const rules = await db.collectionRule.findMany({
