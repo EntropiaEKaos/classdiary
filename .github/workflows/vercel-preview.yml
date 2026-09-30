@@ -1,0 +1,93 @@
+name: ClassDiary Vercel Preview
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: preview
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      PREVIEW_DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+      DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+      ADMIN_BOOTSTRAP_TOKEN: ${{ secrets.ADMIN_BOOTSTRAP_TOKEN }}
+      BILLING_PROVIDER: mercado_pago
+      MERCADO_PAGO_ACCESS_TOKEN: ${{ secrets.MERCADO_PAGO_ACCESS_TOKEN }}
+      MERCADO_PAGO_WEBHOOK_SECRET: ${{ secrets.MERCADO_PAGO_WEBHOOK_SECRET }}
+      MERCADO_PAGO_PRICE_STARTER_BRL: ${{ vars.MERCADO_PAGO_PRICE_STARTER_BRL }}
+      MERCADO_PAGO_PRICE_PRO_BRL: ${{ vars.MERCADO_PAGO_PRICE_PRO_BRL }}
+      MERCADO_PAGO_PRICE_ENTERPRISE_BRL: ${{ vars.MERCADO_PAGO_PRICE_ENTERPRISE_BRL }}
+
+    steps:
+      - name: Checkout certified main candidate
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Validate isolated preview configuration
+        run: npx tsx scripts/check-preview-config.ts
+
+      - name: Pull Vercel preview settings
+        run: npx vercel@59.20.0 pull --yes --environment=preview --token="$VERCEL_TOKEN"
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Validate Prisma schema
+        run: npm run db:validate
+
+      - name: Apply migrations to preview database
+        run: npm run db:migrate
+
+      - name: Build preview artifact
+        run: npx vercel@59.20.0 build --token="$VERCEL_TOKEN"
+
+      - name: Deploy preview artifact
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="$(npx vercel@59.20.0 deploy --prebuilt --token="$VERCEL_TOKEN")"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Preview deployed."
+
+      - name: Wait for preview readiness
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in {1..60}; do
+            if curl -fsS "$PREVIEW_URL/api/health/ready" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Smoke test preview
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS "$PREVIEW_URL/api/health/live" >/dev/null
+          curl -fsS "$PREVIEW_URL/api/health/ready" >/dev/null
+          headers="$(curl -sSI "$PREVIEW_URL/login")"
+          echo "$headers" | grep -qi "x-content-type-options: nosniff"
+          echo "$headers" | grep -qi "x-frame-options: DENY"
+          status="$(curl -sS -o /dev/null -w "%{http_code}" "$PREVIEW_URL/dashboard")"
+          test "$status" = "307" -o "$status" = "302"
