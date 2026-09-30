@@ -6,11 +6,13 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSchoolRole } from "@/lib/rbac";
+import { assertTrustedMutationOrigin } from "@/lib/security";
 
 const digest = (value: string) =>
   createHash("sha256").update(value).digest("hex");
 
 export async function createInvitationAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole([
     "SCHOOL_ADMIN",
     "COORDINATOR",
@@ -82,6 +84,7 @@ export async function createInvitationAction(fd: FormData) {
 }
 
 export async function acceptInvitationAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const token = String(fd.get("token") ?? "");
   const name = String(fd.get("name") ?? "").trim();
   const password = String(fd.get("password") ?? "");
@@ -127,10 +130,13 @@ export async function acceptInvitationAction(fd: FormData) {
   let user;
 
   if (existing) {
+    if (!existing.active) {
+      redirect("/aceitar-convite?error=disabled");
+    }
+
     user = await db.user.update({
       where: { id: existing.id },
       data: {
-        active: true,
         ...(!existing.name ? { name } : {}),
         ...(!existing.passwordHash
           ? { passwordHash: await hash(password, 12) }
