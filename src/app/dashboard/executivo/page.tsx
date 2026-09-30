@@ -24,7 +24,7 @@ export default async function Page(){
     db.medicalRecord.count({where:{organizationId:org.id,occurredAt:{gte:new Date(now.getFullYear(),now.getMonth(),now.getDate())}}}),
     db.guardianAuthorization.count({where:{organizationId:org.id,status:"PENDING"}}),
     db.maintenanceTicket.count({where:{organizationId:org.id,status:{not:"CLOSED"}}}),
-    db.maintenancePlan.count({where:{organizationId:org.id,active:true,nextDueAt:{lte:new Date(Date.now()+7*86400000)}}}),
+    db.maintenancePlan.count({where:{organizationId:org.id,active:true,nextDueAt:{lte:new Date(now.getTime()+7*86400000)}}}),
     db.purchaseOrder.count({where:{organizationId:org.id,status:{in:["DRAFT","ORDERED"]}}}),
     db.surveyResponse.findMany({where:{organizationId:org.id},select:{score:true}}),
     db.pedagogicalGoal.count({where:{organizationId:org.id,status:"ACTIVE"}}),
