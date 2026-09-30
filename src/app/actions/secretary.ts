@@ -450,12 +450,14 @@ export async function importStudentsCsvAction(fd: FormData) {
   const registrations = [...new Set(rows.map((row) => row.registration))];
   const existing = await db.student.findMany({
     where: { organizationId: org.id, registration: { in: registrations } },
-    select: { registration: true },
+    select: { registration: true, active: true },
   });
-  const existingSet = new Set(existing.map((student) => student.registration));
-  const requested = registrations.filter((registration) => !existingSet.has(registration)).length;
+  const existingMap = new Map(existing.map((student) => [student.registration, student.active]));
+  const requested = registrations.filter(
+    (registration) => existingMap.get(registration) !== true,
+  ).length;
 
-  const imported = await withPlanCapacity(
+  await withPlanCapacity(
     org.id,
     "students",
     async (tx) => {
@@ -498,10 +500,9 @@ export async function importStudentsCsvAction(fd: FormData) {
       });
       return count;
     },
-    Math.max(requested, 1),
+    requested,
   );
 
-  void imported;
   revalidatePath("/dashboard/importar-alunos");
   revalidatePath("/dashboard/alunos");
 }
