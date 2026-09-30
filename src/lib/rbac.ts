@@ -190,9 +190,9 @@ export async function getAllowedModules(
 
   const allowed = new Set<string>();
 
-  for (const module of uniqueModules) {
+  for (const moduleName of uniqueModules) {
     const ok = memberships.some((membership) => {
-      const override = overrideMap.get(membership.id + ":" + module);
+      const override = overrideMap.get(membership.id + ":" + moduleName);
 
       if (override) {
         return action === "view"
@@ -206,12 +206,12 @@ export async function getAllowedModules(
 
       return actionAllowed(
         membership.role as SchoolRole,
-        module,
+        moduleName,
         action,
       );
     });
 
-    if (ok) allowed.add(module);
+    if (ok) allowed.add(moduleName);
   }
 
   return allowed;
