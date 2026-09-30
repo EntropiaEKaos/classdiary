@@ -74,7 +74,7 @@ test("school operations flow: student, enrollment, lesson, attendance and grade"
   await page.locator('input[name="name"]').fill(periodName);
   await page.locator('input[name="startsAt"]').fill("2026-01-01");
   await page.locator('input[name="endsAt"]').fill("2026-12-30");
-  await page.locator('input[name="order"]').fill("99");
+  await page.locator('input[name="order"]').fill("19");
   await page.getByRole("button", { name: "Adicionar período" }).click();
   await expect(page.getByText(periodName)).toBeVisible();
 
