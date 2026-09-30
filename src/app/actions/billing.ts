@@ -4,8 +4,7 @@ import {z} from "zod";
 import {db} from "@/lib/db";
 import {requirePlatformOwner} from "@/lib/auth";
 import {assertTrustedMutationOrigin} from "@/lib/security";
-import { PLAN_CATALOG } from "@/lib/plans";
-import { retrySerializable } from "@/lib/transaction-retry";
+import { updateSubscriptionPlan } from "@/lib/subscription-admin";
 
 export async function updateSubscriptionAction(fd:FormData){
   await assertTrustedMutationOrigin();
@@ -27,53 +26,13 @@ export async function updateSubscriptionAction(fd:FormData){
   });
   if(!org) throw new Error("Organização inválida");
 
-  const subscription=await retrySerializable(()=>db.$transaction(async(tx)=>{
-    const locked=await tx.$queryRaw<Array<{id:string}>>`
-      SELECT "id"
-      FROM "Subscription"
-      WHERE "organizationId" = ${p.organizationId}
-      FOR UPDATE
-    `;
-
-    if(!locked[0]) throw new Error("Assinatura da organização não encontrada.");
-
-    const [activeStudents,classes,memberships]=await Promise.all([
-      tx.student.count({where:{organizationId:p.organizationId,active:true}}),
-      tx.classGroup.count({where:{organizationId:p.organizationId}}),
-      tx.membership.findMany({
-        where:{organizationId:p.organizationId,user:{active:true}},
-        distinct:["userId"],
-        select:{userId:true}
-      })
-    ]);
-
-    const target=PLAN_CATALOG[p.plan];
-    if(target.maxStudents!==null&&activeStudents>target.maxStudents){
-      throw new Error(`A escola possui ${activeStudents} alunos ativos e não cabe no plano ${target.label}.`);
-    }
-    if(target.maxClasses!==null&&classes>target.maxClasses){
-      throw new Error(`A escola possui ${classes} turmas e não cabe no plano ${target.label}.`);
-    }
-    if(target.maxSeats!==null&&p.seats>target.maxSeats){
-      throw new Error(`O plano ${target.label} permite no máximo ${target.maxSeats} usuários.`);
-    }
-    if(memberships.length>p.seats){
-      throw new Error(`Existem ${memberships.length} usuários ativos. O limite contratado não pode ser menor que o uso atual.`);
-    }
-
-    const subscription=await tx.subscription.update({
-      where:{organizationId:p.organizationId},
-      data:{plan:p.plan,status:p.status,seats:p.seats}
-    });
-
-    await tx.auditLog.create({data:{
-      userId:user.id,organizationId:p.organizationId,action:"UPDATE",
-      entity:"Subscription",entityId:subscription.id,
-      metadata:{plan:p.plan,status:p.status,seats:p.seats}
-    }});
-
-    return subscription;
-  },{isolationLevel:"Serializable"}));
+  await updateSubscriptionPlan({
+    actorUserId:user.id,
+    organizationId:p.organizationId,
+    plan:p.plan,
+    status:p.status,
+    seats:p.seats
+  });
 
   revalidatePath("/super-admin");
 }
