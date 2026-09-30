@@ -114,6 +114,8 @@ model Organization {
   pedagogicalInterventions PedagogicalIntervention[]
   competencyAssessments CompetencyAssessment[]
   pedagogicalObservations PedagogicalObservation[]
+  guardianMeetings GuardianMeeting[]
+  studentFollowUpPlans StudentFollowUpPlan[]
   questionBank QuestionBankItem[]
   examBlueprints ExamBlueprint[]
   exams Exam[]
@@ -172,6 +174,8 @@ model User {
   interventionsCreated PedagogicalIntervention[] @relation("InterventionCreator")
   competencyAssessmentsCreated CompetencyAssessment[] @relation("CompetencyAssessmentAuthor")
   observationsCreated PedagogicalObservation[] @relation("PedagogicalObservationAuthor")
+  guardianMeetingsCreated GuardianMeeting[] @relation("GuardianMeetingCreator")
+  followUpPlansCreated StudentFollowUpPlan[] @relation("StudentFollowUpPlanCreator")
   periodClosuresClosed PeriodClosure[] @relation("PeriodClosureCloser")
   questionsCreated QuestionBankItem[] @relation("QuestionAuthor")
   examsCreated Exam[] @relation("ExamAuthor")
@@ -252,6 +256,7 @@ model ClassGroup {
   lessonPlans LessonPlan[]
   pedagogicalInterventions PedagogicalIntervention[]
   competencyAssessments CompetencyAssessment[]
+  followUpPlans StudentFollowUpPlan[]
   exams Exam[]
   grades Grade[]
   recoveryGrades RecoveryGrade[]
@@ -349,6 +354,8 @@ model Student {
   pedagogicalInterventions PedagogicalIntervention[]
   competencyAssessments CompetencyAssessment[]
   pedagogicalObservations PedagogicalObservation[]
+  guardianMeetings GuardianMeeting[]
+  followUpPlans StudentFollowUpPlan[]
   examAttempts ExamAttempt[]
   rubricAssessments RubricAssessment[]
   examRecoveryCases ExamRecoveryCase[]
@@ -1377,6 +1384,53 @@ model PedagogicalIntervention {
   updatedAt      DateTime     @updatedAt
 
   @@index([organizationId, status, startsAt])
+  @@index([studentId, status])
+}
+
+model GuardianMeeting {
+  id             String       @id @default(cuid())
+  organizationId String
+  studentId      String
+  createdById    String
+  scheduledAt    DateTime
+  durationMinutes Int         @default(30)
+  channel        String       @default("IN_PERSON")
+  status         String       @default("SCHEDULED")
+  guardianName   String?
+  agenda         String
+  outcome        String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdBy      User         @relation("GuardianMeetingCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, scheduledAt, status])
+  @@index([studentId, scheduledAt])
+}
+
+model StudentFollowUpPlan {
+  id                 String       @id @default(cuid())
+  organizationId     String
+  studentId          String
+  classGroupId       String?
+  createdById        String
+  title              String
+  objective          String
+  actions            String
+  reviewFrequencyDays Int         @default(7)
+  nextReviewAt       DateTime
+  lastReviewedAt     DateTime?
+  status             String       @default("ACTIVE")
+  outcome            String?
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student            Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classGroup         ClassGroup?  @relation(fields: [classGroupId], references: [id], onDelete: SetNull)
+  createdBy          User         @relation("StudentFollowUpPlanCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([organizationId, status, nextReviewAt])
   @@index([studentId, status])
 }
 
