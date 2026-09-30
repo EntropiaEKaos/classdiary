@@ -1,6 +1,5 @@
 "use server";
 
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSchoolRole } from "@/lib/rbac";
@@ -14,20 +13,30 @@ export async function startSaasCheckoutAction(fd: FormData) {
   const input = z.object({
     plan: z.enum(["STARTER", "PRO", "ENTERPRISE"]),
     seats: z.coerce.number().int().min(1).max(100000),
+    checkoutToken: z.string().min(12).max(200),
   }).parse({
     plan: String(fd.get("plan") ?? "STARTER"),
     seats: fd.get("seats") ?? 1,
+    checkoutToken: String(fd.get("checkoutToken") ?? ""),
   });
 
-  const host = (await headers()).get("host") ?? "localhost:3000";
-  const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+  const configuredBase =
+    process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? null;
+  if (process.env.NODE_ENV === "production" && !configuredBase) {
+    throw new Error("APP_URL não configurada para checkout.");
+  }
+  const returnUrl = new URL(
+    "/dashboard/plano",
+    configuredBase ?? "http://127.0.0.1:3000",
+  ).toString();
   const checkout = await createSaasCheckout({
     organizationId: org.id,
     requestedByUserId: user.id,
     plan: input.plan,
     seats: input.seats,
     customerEmail: org.email ?? user.email,
-    returnUrl: `${protocol}://${host}/dashboard/plano`,
+    returnUrl,
+    idempotencyKey: input.checkoutToken,
   });
 
   if (!checkout.checkoutUrl) {
