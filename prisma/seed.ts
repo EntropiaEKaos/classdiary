@@ -166,12 +166,16 @@ async function main() {
     },
   });
 
+  const rolePassword = process.env.SEED_ROLE_PASSWORD ?? "RoleDemo123!";
+  const rolePasswordHash = await hash(rolePassword, 12);
+
   const teacher = await db.user.upsert({
     where: { email: "professor@escolademo.local" },
-    update: { name: "Professor Demo", active: true },
+    update: { name: "Professor Demo", passwordHash: rolePasswordHash, active: true },
     create: {
       name: "Professor Demo",
       email: "professor@escolademo.local",
+      passwordHash: rolePasswordHash,
       active: true,
     },
   });
@@ -189,6 +193,33 @@ async function main() {
       organizationId: school.id,
       userId: teacher.id,
       role: "TEACHER",
+    },
+  });
+
+  const secretary = await db.user.upsert({
+    where: { email: "secretaria@escolademo.local" },
+    update: { name: "Secretaria Demo", passwordHash: rolePasswordHash, active: true },
+    create: {
+      name: "Secretaria Demo",
+      email: "secretaria@escolademo.local",
+      passwordHash: rolePasswordHash,
+      active: true,
+    },
+  });
+
+  await db.membership.upsert({
+    where: {
+      organizationId_userId_role: {
+        organizationId: school.id,
+        userId: secretary.id,
+        role: "SECRETARY",
+      },
+    },
+    update: {},
+    create: {
+      organizationId: school.id,
+      userId: secretary.id,
+      role: "SECRETARY",
     },
   });
 
@@ -240,6 +271,89 @@ async function main() {
     },
   });
 
+  const studentUser = await db.user.upsert({
+    where: { email: "aluno@escolademo.local" },
+    update: { name: "Aluno Demo", passwordHash: rolePasswordHash, active: true },
+    create: {
+      name: "Aluno Demo",
+      email: "aluno@escolademo.local",
+      passwordHash: rolePasswordHash,
+      active: true,
+    },
+  });
+
+  await db.membership.upsert({
+    where: {
+      organizationId_userId_role: {
+        organizationId: school.id,
+        userId: studentUser.id,
+        role: "STUDENT",
+      },
+    },
+    update: {},
+    create: {
+      organizationId: school.id,
+      userId: studentUser.id,
+      role: "STUDENT",
+    },
+  });
+
+  await db.studentUser.upsert({
+    where: {
+      studentId_userId: {
+        studentId: student.id,
+        userId: studentUser.id,
+      },
+    },
+    update: {},
+    create: {
+      studentId: student.id,
+      userId: studentUser.id,
+    },
+  });
+
+  const guardianUser = await db.user.upsert({
+    where: { email: "responsavel@escolademo.local" },
+    update: { name: "Responsável Demo", passwordHash: rolePasswordHash, active: true },
+    create: {
+      name: "Responsável Demo",
+      email: "responsavel@escolademo.local",
+      passwordHash: rolePasswordHash,
+      active: true,
+    },
+  });
+
+  await db.membership.upsert({
+    where: {
+      organizationId_userId_role: {
+        organizationId: school.id,
+        userId: guardianUser.id,
+        role: "GUARDIAN",
+      },
+    },
+    update: {},
+    create: {
+      organizationId: school.id,
+      userId: guardianUser.id,
+      role: "GUARDIAN",
+    },
+  });
+
+  await db.studentGuardian.upsert({
+    where: {
+      studentId_userId: {
+        studentId: student.id,
+        userId: guardianUser.id,
+      },
+    },
+    update: { relation: "Responsável" },
+    create: {
+      studentId: student.id,
+      userId: guardianUser.id,
+      relation: "Responsável",
+    },
+  });
+
   const foreignOrg = await db.organization.upsert({
     where: { slug: "escola-isolada-e2e" },
     update: { active: true },
@@ -271,6 +385,7 @@ async function main() {
   console.log("Seed concluído.");
   console.log("Admin:", ownerEmail);
   console.log("Senha de demonstração:", ownerPassword);
+  console.log("Senha dos perfis E2E:", rolePassword);
   console.log("Escola:", school.name);
 }
 
