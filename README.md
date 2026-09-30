@@ -38,6 +38,11 @@ SaaS multi-tenant de diário de classe e gestão escolar online para escolas, cu
 - Auditoria
 - Health/readiness em `/api/health`
 
+## Documentação comercial
+
+- [PDF comercial - funcionalidades implementadas](docs/ClassDiary_Documentacao_Comercial.pdf)
+- O PDF é regenerável pelo workflow `Generate Commercial PDF` a partir de `scripts/generate_commercial_pdf.py`.
+
 ## Desenvolvimento
 
 ```bash
