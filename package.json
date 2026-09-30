@@ -20,7 +20,8 @@
     "db:validate": "prisma validate",
     "db:migrate:status": "prisma migrate status",
     "db:migrate:deploy": "node scripts/check-migration-baseline.mjs && prisma migrate deploy",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "security:actions": "node scripts/check-server-action-guards.mjs"
   },
   "dependencies": {
     "@prisma/client": "^7.10.0",
