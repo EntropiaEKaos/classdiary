@@ -113,6 +113,7 @@ export async function GET(
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="recibo-${receipt.number}.pdf"`,
+    "Cache-Control": "private, no-store",
     },
   });
 }
