@@ -120,6 +120,10 @@ model Organization {
   studentFollowUpPlans StudentFollowUpPlan[]
   operationalTasks OperationalTask[]
   approvalRequests ApprovalRequest[]
+  privacyConsents PrivacyConsent[]
+  dataSubjectRequests DataSubjectRequest[]
+  retentionPolicies RetentionPolicy[]
+  sensitiveAccessLogs SensitiveAccessLog[]
   questionBank QuestionBankItem[]
   examBlueprints ExamBlueprint[]
   exams Exam[]
@@ -187,6 +191,10 @@ model User {
   operationalRoutinesCreated OperationalRoutine[] @relation("OperationalRoutineCreator")
   operationalRoutinesAssigned OperationalRoutine[] @relation("OperationalRoutineAssignee")
   automationExecutionsStarted AutomationExecution[] @relation("AutomationExecutionStarter")
+  privacyConsents PrivacyConsent[]
+  dataSubjectRequests DataSubjectRequest[] @relation("DataSubjectRequestRequester")
+  dataSubjectRequestsDecided DataSubjectRequest[] @relation("DataSubjectRequestDecider")
+  sensitiveAccessLogs SensitiveAccessLog[]
   periodClosuresClosed PeriodClosure[] @relation("PeriodClosureCloser")
   questionsCreated QuestionBankItem[] @relation("QuestionAuthor")
   examsCreated Exam[] @relation("ExamAuthor")
@@ -367,6 +375,9 @@ model Student {
   pedagogicalObservations PedagogicalObservation[]
   guardianMeetings GuardianMeeting[]
   followUpPlans StudentFollowUpPlan[]
+  privacyConsents PrivacyConsent[]
+  dataSubjectRequests DataSubjectRequest[]
+  sensitiveAccessLogs SensitiveAccessLog[]
   examAttempts ExamAttempt[]
   rubricAssessments RubricAssessment[]
   examRecoveryCases ExamRecoveryCase[]
@@ -2266,6 +2277,88 @@ model Subscription {
   organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
+}
+
+model PrivacyConsent {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String?
+  studentId      String?
+  type           String
+  version        String       @default("1")
+  status         String       @default("GRANTED")
+  source         String       @default("PORTAL")
+  grantedAt      DateTime     @default(now())
+  withdrawnAt    DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  student        Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, type, status])
+  @@index([userId, type])
+  @@index([studentId, type])
+}
+
+model DataSubjectRequest {
+  id              String       @id @default(cuid())
+  organizationId  String
+  requesterUserId String
+  studentId       String?
+  decidedById     String?
+  type            String
+  status          String       @default("OPEN")
+  description     String?
+  resolution      String?
+  dueAt           DateTime?
+  decidedAt       DateTime?
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  requester       User         @relation("DataSubjectRequestRequester", fields: [requesterUserId], references: [id], onDelete: Restrict)
+  student         Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  decidedBy       User?        @relation("DataSubjectRequestDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId, status, createdAt])
+  @@index([requesterUserId, createdAt])
+  @@index([studentId, createdAt])
+}
+
+model RetentionPolicy {
+  id             String       @id @default(cuid())
+  organizationId String
+  dataCategory   String
+  retentionDays  Int
+  action         String       @default("REVIEW")
+  notes          String?
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, dataCategory])
+  @@index([organizationId, active])
+}
+
+model SensitiveAccessLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  studentId      String?
+  resourceType   String
+  resourceId     String?
+  purpose        String?
+  ipAddress      String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  student        Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+  @@index([studentId, createdAt])
+  @@index([resourceType, resourceId])
 }
 
 model AuditLog {
