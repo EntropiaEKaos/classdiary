@@ -113,6 +113,7 @@ const items: NavItem[] = [
   { href: "/dashboard/integridade-provas", label: "Integridade de provas", Icon: TriangleAlert, module: "assessments" },
   { href: "/dashboard/evolucao-avaliacoes", label: "Evolução em avaliações", Icon: ChartNoAxesColumnIncreasing, module: "assessments" },
 
+  { href: "/dashboard/plano", label: "Plano e uso", Icon: Landmark, roles: ["SCHOOL_ADMIN", "COORDINATOR"] },
   { href: "/dashboard/configuracoes", label: "Configurações", Icon: FileText, roles: ["SCHOOL_ADMIN", "COORDINATOR"] },
 ];
 
