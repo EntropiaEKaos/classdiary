@@ -3,12 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireModulePermission } from "@/lib/rbac";
+import { requireSchoolRole } from "@/lib/rbac";
 import { assertTrustedMutationOrigin } from "@/lib/security";
 
 export async function createGuardianMeetingAction(fd: FormData) {
   await assertTrustedMutationOrigin();
-  const { user, org } = await requireModulePermission("pedagogy", "create");
+  const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "COORDINATOR"]);
 
   const p = z.object({
     studentId: z.string().min(1),
@@ -62,7 +62,7 @@ export async function createGuardianMeetingAction(fd: FormData) {
 
 export async function completeGuardianMeetingAction(fd: FormData) {
   await assertTrustedMutationOrigin();
-  const { user, org } = await requireModulePermission("pedagogy", "update");
+  const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "COORDINATOR"]);
 
   const p = z.object({
     id: z.string().min(1),
@@ -97,7 +97,7 @@ export async function completeGuardianMeetingAction(fd: FormData) {
 
 export async function createStudentFollowUpPlanAction(fd: FormData) {
   await assertTrustedMutationOrigin();
-  const { user, org } = await requireModulePermission("pedagogy", "create");
+  const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "COORDINATOR"]);
 
   const p = z.object({
     studentId: z.string().min(1),
@@ -160,7 +160,7 @@ export async function createStudentFollowUpPlanAction(fd: FormData) {
 
 export async function reviewStudentFollowUpPlanAction(fd: FormData) {
   await assertTrustedMutationOrigin();
-  const { user, org } = await requireModulePermission("pedagogy", "update");
+  const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "COORDINATOR"]);
 
   const id = z.string().min(1).parse(String(fd.get("id") ?? ""));
 
@@ -193,7 +193,7 @@ export async function reviewStudentFollowUpPlanAction(fd: FormData) {
 
 export async function runCoordinationAlertsAction() {
   await assertTrustedMutationOrigin();
-  const { user, org } = await requireModulePermission("pedagogy", "update");
+  const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "COORDINATOR"]);
 
   const now = new Date();
   const soon = new Date(now.getTime() + 86400000);
