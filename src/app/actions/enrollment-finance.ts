@@ -189,6 +189,14 @@ export async function convertEnrollmentLeadAction(fd: FormData) {
 
       return { studentId: student.id, converted: true };
     },
+    async (tx) => {
+      const lead = await tx.enrollmentLead.findFirst({
+        where: { id: leadId, organizationId: org.id },
+        select: { convertedStudentId: true },
+      });
+      if (!lead) throw new Error("Pré-inscrição inválida.");
+      return lead.convertedStudentId ? 0 : 1;
+    },
   );
 
   if (result.converted) {
