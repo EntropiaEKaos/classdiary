@@ -56,7 +56,7 @@ jobs:
       - name: Seed CI database
         run: npm run seed
 
-      - name: Typecheck
+      - name: Server Action mutation security guard\n        run: npm run security:actions\n\n      - name: Typecheck
         run: npm run typecheck
 
       - name: Lint
