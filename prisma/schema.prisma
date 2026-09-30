@@ -2124,3 +2124,15 @@ model AuditLog {
   @@index([organizationId, createdAt])
   @@index([userId, createdAt])
 }
+
+
+model LoginThrottle {
+  key             String   @id
+  attempts        Int      @default(0)
+  windowStartedAt DateTime @default(now())
+  blockedUntil    DateTime?
+  lastAttemptAt   DateTime @default(now())
+
+  @@index([blockedUntil])
+  @@index([lastAttemptAt])
+}
