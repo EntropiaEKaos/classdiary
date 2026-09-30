@@ -107,6 +107,31 @@ async function main() {
     },
   });
 
+  await db.academicPeriod.upsert({
+    where: {
+      organizationId_schoolYearId_name: {
+        organizationId: school.id,
+        schoolYearId: year.id,
+        name: "Período E2E Base",
+      },
+    },
+    update: {
+      active: true,
+      startsAt: new Date("2026-01-01T00:00:00.000Z"),
+      endsAt: new Date("2026-12-30T23:59:59.000Z"),
+      order: 1,
+    },
+    create: {
+      organizationId: school.id,
+      schoolYearId: year.id,
+      name: "Período E2E Base",
+      startsAt: new Date("2026-01-01T00:00:00.000Z"),
+      endsAt: new Date("2026-12-30T23:59:59.000Z"),
+      order: 1,
+      active: true,
+    },
+  });
+
   const classGroup = await db.classGroup.upsert({
     where: {
       organizationId_schoolYearId_name: {
