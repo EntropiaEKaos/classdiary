@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { activeOrganization, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { registerSensitiveAccess } from "@/app/actions/privacy";
+import { registerSensitiveAccess } from "@/lib/privacy";
 
 export async function GET(
   _request: Request,
