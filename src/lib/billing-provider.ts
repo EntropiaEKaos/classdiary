@@ -10,6 +10,7 @@ export type CheckoutRequest = {
 
 export type CheckoutSession = {
   provider: string;
+  providerSubscriptionId?: string | null;
   externalReference: string;
   checkoutUrl: string;
 };
@@ -19,6 +20,7 @@ export type BillingWebhookEvent = {
   providerEventId: string;
   type:
     | "CHECKOUT_APPROVED"
+    | "PAYMENT_RENEWED"
     | "PAYMENT_FAILED"
     | "SUBSCRIPTION_CANCELED"
     | "NOOP";
