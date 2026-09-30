@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireSchoolRole } from "@/lib/rbac";
+import { requireModulePermission, requireSchoolRole } from "@/lib/rbac";
+import { assertTrustedMutationOrigin } from "@/lib/security";
 
 function calculateDiscount(
   amount: number,
@@ -16,7 +17,16 @@ function calculateDiscount(
   return 0;
 }
 
+function validDate(value: string, label: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(label + " inválida.");
+  }
+  return date;
+}
+
 export async function updateFinancialSettingsAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN"]);
 
   const p = z.object({
@@ -78,7 +88,8 @@ export async function updateFinancialSettingsAction(fd: FormData) {
 }
 
 export async function createStudentContractAction(fd: FormData) {
-  const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "SECRETARY"]);
+  await assertTrustedMutationOrigin();
+  const { user, org } = await requireModulePermission("finance", "create");
 
   const p = z.object({
     studentId: z.string().min(1),
@@ -102,8 +113,19 @@ export async function createStudentContractAction(fd: FormData) {
     notes: String(fd.get("notes") ?? "").trim(),
   });
 
+  if (p.discountType === "PERCENT" && (p.discountValue ?? 0) > 100) {
+    throw new Error("Desconto percentual não pode ultrapassar 100%.");
+  }
+
+  const startsAt = validDate(p.startsAt, "Data inicial");
+  const endsAt = p.endsAt ? validDate(p.endsAt, "Data final") : null;
+
+  if (endsAt && endsAt < startsAt) {
+    throw new Error("Data final anterior ao início do contrato.");
+  }
+
   const student = await db.student.findFirst({
-    where: { id: p.studentId, organizationId: org.id },
+    where: { id: p.studentId, organizationId: org.id, active: true },
   });
   if (!student) throw new Error("Aluno inválido.");
 
@@ -112,8 +134,8 @@ export async function createStudentContractAction(fd: FormData) {
       organizationId: org.id,
       studentId: student.id,
       title: p.title,
-      startsAt: new Date(p.startsAt),
-      endsAt: p.endsAt ? new Date(p.endsAt) : null,
+      startsAt,
+      endsAt,
       monthlyAmount: p.monthlyAmount,
       discountType: p.discountType === "NONE" ? null : p.discountType,
       discountValue: p.discountType === "NONE" ? null : p.discountValue ?? 0,
@@ -136,7 +158,8 @@ export async function createStudentContractAction(fd: FormData) {
 }
 
 export async function generateMonthlyInvoiceAction(fd: FormData) {
-  const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "SECRETARY"]);
+  await assertTrustedMutationOrigin();
+  const { user, org } = await requireModulePermission("finance", "create");
 
   const p = z.object({
     contractId: z.string().min(1),
@@ -150,7 +173,11 @@ export async function generateMonthlyInvoiceAction(fd: FormData) {
 
   const [contract, settings] = await Promise.all([
     db.studentContract.findFirst({
-      where: { id: p.contractId, organizationId: org.id, status: "ACTIVE" },
+      where: {
+        id: p.contractId,
+        organizationId: org.id,
+        status: "ACTIVE",
+      },
       include: { student: true },
     }),
     db.financialSettings.findUnique({
@@ -169,7 +196,8 @@ export async function generateMonthlyInvoiceAction(fd: FormData) {
 
   const dueDay = settings?.defaultDueDay ?? 10;
   const dueAt = new Date(p.year, p.month - 1, dueDay, 12, 0, 0);
-  const reference = `${contract.student.registration}-${p.year}-${String(p.month).padStart(2, "0")}`;
+  const reference =
+    `${contract.student.registration}-${p.year}-${String(p.month).padStart(2, "0")}`;
 
   const invoice = await db.invoice.upsert({
     where: {
@@ -210,7 +238,8 @@ export async function generateMonthlyInvoiceAction(fd: FormData) {
 }
 
 export async function registerPaymentAction(fd: FormData) {
-  const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "SECRETARY"]);
+  await assertTrustedMutationOrigin();
+  const { user, org } = await requireModulePermission("finance", "update");
 
   const p = z.object({
     invoiceId: z.string().min(1),
@@ -226,99 +255,116 @@ export async function registerPaymentAction(fd: FormData) {
     notes: String(fd.get("notes") ?? "").trim(),
   });
 
-  const invoice = await db.invoice.findFirst({
-    where: { id: p.invoiceId, organizationId: org.id },
-    include: { payments: true, student: true },
-  });
-  if (!invoice) throw new Error("Cobrança inválida.");
-
-  const currentPaid = invoice.payments.reduce(
-    (sum, payment) => sum + Number(payment.amount),
-    0,
-  );
-
-  const targetAmount =
-    Number(invoice.amount) -
-    Number(invoice.discountAmount) +
-    Number(invoice.fineAmount) +
-    Number(invoice.interestAmount);
-
-  if (currentPaid + p.amount > targetAmount + 0.01) {
-    throw new Error("Pagamento excede o saldo da cobrança.");
-  }
-
-  const payment = await db.payment.create({
-    data: {
-      organizationId: org.id,
-      studentId: invoice.studentId,
-      invoiceId: invoice.id,
-      amount: p.amount,
-      method: p.method,
-      externalReference: p.externalReference || null,
-      notes: p.notes || null,
-    },
-  });
-
-  const newPaid = currentPaid + p.amount;
-  const settled = newPaid >= targetAmount - 0.01;
-
-  if (settled) {
-    await db.invoice.update({
-      where: { id: invoice.id },
-      data: {
-        status: "PAID",
-        paidAt: new Date(),
-      },
-    });
-  }
-
   const settings = await db.financialSettings.findUnique({
     where: { organizationId: org.id },
   });
 
   const prefix = settings?.receiptPrefix ?? "REC";
-  const receiptNumber = `${prefix}-${Date.now()}-${payment.id.slice(-6).toUpperCase()}`;
 
-  const receipt = await db.receipt.create({
-    data: {
-      organizationId: org.id,
-      studentId: invoice.studentId,
-      invoiceId: invoice.id,
-      paymentId: payment.id,
-      number: receiptNumber,
-      amount: p.amount,
-      description: `Pagamento de ${invoice.description}`,
-    },
-  });
+  const result = await db.$transaction(
+    async (tx) => {
+      const invoice = await tx.invoice.findFirst({
+        where: {
+          id: p.invoiceId,
+          organizationId: org.id,
+          status: { in: ["OPEN", "OVERDUE", "PARTIAL"] },
+        },
+        include: { payments: true },
+      });
 
-  await db.auditLog.create({
-    data: {
-      userId: user.id,
-      organizationId: org.id,
-      action: "PAY",
-      entity: "Invoice",
-      entityId: invoice.id,
-      metadata: {
-        paymentId: payment.id,
-        receiptId: receipt.id,
-        amount: p.amount,
-        method: p.method,
-      },
+      if (!invoice) throw new Error("Cobrança inválida ou já quitada.");
+
+      const currentPaid = invoice.payments.reduce(
+        (sum, payment) => sum + Number(payment.amount),
+        0,
+      );
+
+      const targetAmount =
+        Number(invoice.amount) -
+        Number(invoice.discountAmount) +
+        Number(invoice.fineAmount) +
+        Number(invoice.interestAmount);
+
+      if (currentPaid + p.amount > targetAmount + 0.01) {
+        throw new Error("Pagamento excede o saldo da cobrança.");
+      }
+
+      const payment = await tx.payment.create({
+        data: {
+          organizationId: org.id,
+          studentId: invoice.studentId,
+          invoiceId: invoice.id,
+          amount: p.amount,
+          method: p.method,
+          externalReference: p.externalReference || null,
+          notes: p.notes || null,
+        },
+      });
+
+      const newPaid = currentPaid + p.amount;
+      const settled = newPaid >= targetAmount - 0.01;
+
+      await tx.invoice.update({
+        where: { id: invoice.id },
+        data: settled
+          ? { status: "PAID", paidAt: new Date() }
+          : { status: "PARTIAL", paidAt: null },
+      });
+
+      const receiptNumber =
+        `${prefix}-${Date.now()}-${payment.id.slice(-6).toUpperCase()}`;
+
+      const receipt = await tx.receipt.create({
+        data: {
+          organizationId: org.id,
+          studentId: invoice.studentId,
+          invoiceId: invoice.id,
+          paymentId: payment.id,
+          number: receiptNumber,
+          amount: p.amount,
+          description: `Pagamento de ${invoice.description}`,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          organizationId: org.id,
+          action: "PAY",
+          entity: "Invoice",
+          entityId: invoice.id,
+          metadata: {
+            paymentId: payment.id,
+            receiptId: receipt.id,
+            amount: p.amount,
+            method: p.method,
+          },
+        },
+      });
+
+      return { invoiceId: invoice.id };
     },
-  });
+    { isolationLevel: "Serializable" },
+  );
 
   revalidatePath("/dashboard/financeiro/cobrancas");
   revalidatePath("/dashboard/financeiro");
+  revalidatePath(`/api/recibos/${result.invoiceId}`);
 }
 
 export async function applyOverdueChargesAction(fd: FormData) {
-  const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN"]);
+  await assertTrustedMutationOrigin();
+  const { user, org } = await requireModulePermission("finance", "update");
 
   const id = z.string().min(1).parse(String(fd.get("invoiceId") ?? ""));
 
   const [invoice, settings] = await Promise.all([
     db.invoice.findFirst({
-      where: { id, organizationId: org.id, status: "OPEN" },
+      where: {
+        id,
+        organizationId: org.id,
+        status: { in: ["OPEN", "OVERDUE", "PARTIAL"] },
+      },
     }),
     db.financialSettings.findUnique({
       where: { organizationId: org.id },
@@ -326,11 +372,12 @@ export async function applyOverdueChargesAction(fd: FormData) {
   ]);
 
   if (!invoice) throw new Error("Cobrança inválida.");
-  if (invoice.dueAt >= new Date()) throw new Error("Cobrança ainda não venceu.");
+  if (invoice.dueAt >= new Date()) {
+    throw new Error("Cobrança ainda não venceu.");
+  }
 
   const base =
-    Number(invoice.amount) -
-    Number(invoice.discountAmount);
+    Number(invoice.amount) - Number(invoice.discountAmount);
 
   const lateFeePercent = Number(settings?.lateFeePercent ?? 2);
   const monthlyInterestPercent = Number(
@@ -339,7 +386,9 @@ export async function applyOverdueChargesAction(fd: FormData) {
 
   const daysLate = Math.max(
     1,
-    Math.floor((Date.now() - invoice.dueAt.getTime()) / 86_400_000),
+    Math.floor(
+      (Date.now() - invoice.dueAt.getTime()) / 86_400_000,
+    ),
   );
 
   const fineAmount = (base * lateFeePercent) / 100;
