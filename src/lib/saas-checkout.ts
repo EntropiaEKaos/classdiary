@@ -97,6 +97,7 @@ export async function createSaasCheckout(input: CreateSaasCheckoutInput) {
   try {
     const session = await provider.createCheckout({
       organizationId: input.organizationId,
+      externalReference: checkout.externalReference,
       plan: input.plan,
       seats: input.seats,
       customerEmail: input.customerEmail,
