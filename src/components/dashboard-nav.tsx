@@ -31,6 +31,7 @@ type NavItem = {
 const items: NavItem[] = [
   { href: "/dashboard", label: "Visão geral", Icon: LayoutDashboard },
   { href: "/dashboard/executivo", label: "Visão executiva", Icon: ChartNoAxesColumnIncreasing, roles: ["SCHOOL_ADMIN", "COORDINATOR"] },
+  { href: "/dashboard/coordenacao", label: "Central da coordenação", Icon: Users, roles: ["SCHOOL_ADMIN", "COORDINATOR"] },
 
   { href: "/dashboard/alunos", label: "Alunos", Icon: GraduationCap, module: "students" },
   { href: "/dashboard/turmas", label: "Turmas", Icon: School, module: "academic" },
