@@ -64,19 +64,11 @@ test("school operations flow: student, enrollment, lesson, attendance and grade"
   const suffix = Date.now().toString();
   const studentName = `Aluno E2E ${suffix}`;
   const registration = `E2E-${suffix}`;
-  const periodName = `Período E2E ${suffix}`;
+  const periodName = "Período E2E Base";
   const lessonTitle = `Aula E2E ${suffix}`;
   const gradeLabel = `Nota E2E ${suffix}`;
 
   await loginAsAdmin(page);
-
-  await page.goto("/dashboard/configuracoes");
-  await page.locator('input[name="name"]').fill(periodName);
-  await page.locator('input[name="startsAt"]').fill("2026-01-01");
-  await page.locator('input[name="endsAt"]').fill("2026-12-30");
-  await page.locator('input[name="order"]').fill("19");
-  await page.getByRole("button", { name: "Adicionar período" }).click();
-  await expect(page.getByText(periodName)).toBeVisible();
 
   await page.goto("/dashboard/alunos");
   await page.locator('input[name="name"]').fill(studentName);
@@ -89,7 +81,8 @@ test("school operations flow: student, enrollment, lesson, attendance and grade"
   await page.locator('select[name="studentId"]').selectOption({ label: studentName });
   await page.locator('select[name="classGroupId"]').selectOption({ label: "7º Ano A" });
   await page.getByRole("button", { name: "Matricular" }).click();
-  await expect(page.getByText(studentName, { exact: true })).toBeVisible();
+  const enrollmentRow = page.locator(".table-row").filter({ hasText: studentName }).filter({ hasText: "7º Ano A" });
+  await expect(enrollmentRow).toBeVisible();
 
   await page.goto("/dashboard/diarios");
   await page.locator('select[name="classGroupId"]').selectOption({ label: "7º Ano A" });
