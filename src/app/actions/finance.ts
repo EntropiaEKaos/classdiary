@@ -264,6 +264,14 @@ export async function registerPaymentAction(fd: FormData) {
 
   const result = await retrySerializable(() => db.$transaction(
     async (tx) => {
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "Invoice"
+        WHERE "id" = ${p.invoiceId}
+          AND "organizationId" = ${org.id}
+        FOR UPDATE
+      `;
+
       if (p.externalReference) {
         const existingPayment = await tx.payment.findFirst({
           where: {
@@ -366,7 +374,7 @@ export async function registerPaymentAction(fd: FormData) {
 
       return { invoiceId: invoice.id };
     },
-    { isolationLevel: "Serializable" },
+    { isolationLevel: "ReadCommitted" },
   ));
 
   revalidatePath("/dashboard/financeiro/cobrancas");
