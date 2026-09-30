@@ -50,8 +50,8 @@ jobs:
       - name: Validate Prisma schema
         run: npx prisma validate
 
-      - name: Push schema to CI database
-        run: npm run db:push
+      - name: Apply Prisma migrations to CI database
+        run: npm run db:migrate
 
       - name: Seed CI database
         run: npm run seed
