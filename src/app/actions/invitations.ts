@@ -6,7 +6,9 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSchoolRole } from "@/lib/rbac";
+import type { Prisma } from "../../../generated/prisma/client";
 import { assertTrustedMutationOrigin } from "@/lib/security";
+import { withPlanCapacity } from "@/lib/plans";
 
 const digest = (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -127,34 +129,37 @@ export async function acceptInvitationAction(fd: FormData) {
     where: { email: invite.email },
   });
 
-  let user;
-
-  if (existing) {
-    if (!existing.active) {
-      redirect("/aceitar-convite?error=disabled");
-    }
-
-    user = await db.user.update({
-      where: { id: existing.id },
-      data: {
-        ...(!existing.name ? { name } : {}),
-        ...(!existing.passwordHash
-          ? { passwordHash: await hash(password, 12) }
-          : {}),
-      },
-    });
-  } else {
-    user = await db.user.create({
-      data: {
-        name,
-        email: invite.email,
-        passwordHash: await hash(password, 12),
-        active: true,
-      },
-    });
+  if (existing && !existing.active) {
+    redirect("/aceitar-convite?error=disabled");
   }
 
-  await db.$transaction(async (tx) => {
+  const existingSeat = existing
+    ? await db.membership.findFirst({
+        where: { organizationId: invite.organizationId, userId: existing.id },
+      })
+    : null;
+
+  const passwordHash =
+    existing?.passwordHash ? existing.passwordHash : await hash(password, 12);
+
+  const accept = async (tx: Prisma.TransactionClient) => {
+    const user = existing
+      ? await tx.user.update({
+          where: { id: existing.id },
+          data: {
+            ...(!existing.name ? { name } : {}),
+            ...(!existing.passwordHash ? { passwordHash } : {}),
+          },
+        })
+      : await tx.user.create({
+          data: {
+            name,
+            email: invite.email,
+            passwordHash,
+            active: true,
+          },
+        });
+
     await tx.membership.upsert({
       where: {
         organizationId_userId_role: {
@@ -217,7 +222,13 @@ export async function acceptInvitationAction(fd: FormData) {
         entityId: invite.id,
       },
     });
-  });
+  };
+
+  if (existingSeat) {
+    await db.$transaction(accept);
+  } else {
+    await withPlanCapacity(invite.organizationId, "seats", accept);
+  }
 
   redirect("/login");
 }
