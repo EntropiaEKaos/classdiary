@@ -4,9 +4,11 @@ import {
   recordRestoreDrillAction,
   resolveIncidentAction,
   upsertReleaseChecklistItemAction,
+  initializeReleaseChecklistAction,
 } from "@/app/actions/readiness";
 import { db } from "@/lib/db";
 import { requireSchoolRole } from "@/lib/rbac";
+import { getReleaseReadinessSnapshot } from "@/lib/release-readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,7 @@ export default async function Page() {
     drills,
     checklist,
     automationExecutions,
+    automaticReadiness,
   ] = await Promise.all([
     db.incident.findMany({
       where: { organizationId: org.id },
@@ -51,6 +54,7 @@ export default async function Page() {
       orderBy: { startedAt: "desc" },
       take: 50,
     }),
+    getReleaseReadinessSnapshot(org.id),
   ]);
 
   const openIncidents = incidents.filter((item) => item.status === "OPEN");
@@ -89,6 +93,34 @@ export default async function Page() {
           </a>
         </div>
       </div>
+
+      <section className="table-card" style={{ marginBottom: 16 }}>
+        <div className="page-head">
+          <div>
+            <h3>Gate automático de publicação</h3>
+            <div className="muted">
+              Critérios internos de release; não substituem análise jurídica ou operacional externa.
+            </div>
+          </div>
+          <span className="status">
+            {automaticReadiness.ready ? "PRONTO" : "BLOQUEADO"}
+          </span>
+        </div>
+
+        {automaticReadiness.checks.map((check) => (
+          <div className="table-row" key={check.code}>
+            <strong>{check.code}</strong>
+            <span>{check.detail}</span>
+            <span className="status">{check.ok ? "OK" : "PENDENTE"}</span>
+          </div>
+        ))}
+
+        <form action={initializeReleaseChecklistAction} style={{ marginTop: 12 }}>
+          <button className="btn btn-light">
+            Criar/atualizar checklist padrão
+          </button>
+        </form>
+      </section>
 
       <div className="dashboard-grid">
         <div className="kpi">
