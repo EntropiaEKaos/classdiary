@@ -342,7 +342,7 @@ export async function requestGradeReviewAction(fd: FormData) {
     throw new Error("Já existe uma solicitação de revisão pendente para esta nota.");
   }
 
-  const review = await db.gradeReviewRequest.create({
+  await db.gradeReviewRequest.create({
     data: {
       organizationId: org.id,
       gradeId: grade.id,
@@ -363,7 +363,6 @@ export async function requestGradeReviewAction(fd: FormData) {
   revalidatePath("/portal");
   revalidatePath("/aluno");
 
-  return review.id;
 }
 
 export async function reviewGradeRequestAction(fd: FormData) {
