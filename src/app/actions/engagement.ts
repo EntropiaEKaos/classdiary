@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { activeOrganization, requireUser } from "@/lib/auth";
 import { requireSchoolRole } from "@/lib/rbac";
+import { assertTrustedMutationOrigin } from "@/lib/security";
 
 async function notify(
   organizationId: string,
@@ -26,6 +27,7 @@ async function notify(
 }
 
 export async function createConversationAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const user = await requireUser();
   const org = await activeOrganization();
   if (!org) throw new Error("Nenhuma escola ativa.");
@@ -73,6 +75,7 @@ export async function createConversationAction(fd: FormData) {
 }
 
 export async function replyConversationAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const user = await requireUser();
   const org = await activeOrganization();
   if (!org) throw new Error("Nenhuma escola ativa.");
@@ -125,6 +128,7 @@ export async function replyConversationAction(fd: FormData) {
 }
 
 export async function markNotificationReadAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const user = await requireUser();
   const id = z.string().min(1).parse(String(fd.get("notificationId") ?? ""));
 
@@ -137,6 +141,7 @@ export async function markNotificationReadAction(fd: FormData) {
 }
 
 export async function createAbsenceJustificationAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const user = await requireUser();
   const org = await activeOrganization();
   if (!org) throw new Error("Nenhuma escola ativa.");
@@ -150,6 +155,16 @@ export async function createAbsenceJustificationAction(fd: FormData) {
     reason: String(fd.get("reason") ?? "").trim(),
     attachmentUrl: String(fd.get("attachmentUrl") ?? "").trim(),
   });
+
+  if (p.attachmentUrl) {
+    const url = new URL(p.attachmentUrl);
+    if (
+      url.protocol !== "https:" &&
+      !(process.env.NODE_ENV !== "production" && url.protocol === "http:")
+    ) {
+      throw new Error("O anexo deve usar HTTPS.");
+    }
+  }
 
   const attendance = await db.attendance.findFirst({
     where: {
@@ -225,6 +240,7 @@ export async function createAbsenceJustificationAction(fd: FormData) {
 }
 
 export async function reviewAbsenceJustificationAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole([
     "SCHOOL_ADMIN",
     "COORDINATOR",
@@ -287,6 +303,7 @@ export async function reviewAbsenceJustificationAction(fd: FormData) {
 }
 
 export async function requestGradeReviewAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const user = await requireUser();
   const org = await activeOrganization();
   if (!org) throw new Error("Nenhuma escola ativa.");
@@ -350,6 +367,7 @@ export async function requestGradeReviewAction(fd: FormData) {
 }
 
 export async function reviewGradeRequestAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole([
     "SCHOOL_ADMIN",
     "COORDINATOR",
