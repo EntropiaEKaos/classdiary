@@ -111,6 +111,7 @@ export class MercadoPagoBillingProvider implements BillingProvider {
 
     return {
       provider: "MERCADO_PAGO",
+      providerSubscriptionId: data.id,
       externalReference: request.externalReference,
       checkoutUrl: data.init_point,
     };
