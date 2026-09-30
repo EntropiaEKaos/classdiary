@@ -96,6 +96,7 @@ export async function createPublicEnrollmentLeadAction(fd: FormData) {
 }
 
 export async function updateEnrollmentLeadStatusAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "SECRETARY"]);
 
   const p = z.object({
@@ -131,6 +132,7 @@ export async function updateEnrollmentLeadStatusAction(fd: FormData) {
 }
 
 export async function convertEnrollmentLeadAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "SECRETARY"]);
 
   const leadId = z.string().min(1).parse(String(fd.get("id") ?? ""));
@@ -250,6 +252,7 @@ export async function acceptStudentContractAction(fd: FormData) {
 }
 
 export async function createCostCenterAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN"]);
 
   const p = z.object({
@@ -282,6 +285,7 @@ export async function createCostCenterAction(fd: FormData) {
 }
 
 export async function createExpenseAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "SECRETARY"]);
 
   const p = z.object({
@@ -302,6 +306,16 @@ export async function createExpenseAction(fd: FormData) {
     notes: String(fd.get("notes") ?? "").trim(),
   });
 
+  if (p.costCenterId) {
+    const center = await db.costCenter.findFirst({
+      where: { id: p.costCenterId, organizationId: org.id },
+    });
+    if (!center) throw new Error("Centro de custo inválido.");
+  }
+
+  const dueAt = new Date(p.dueAt);
+  if (Number.isNaN(dueAt.getTime())) throw new Error("Data de vencimento inválida.");
+
   const expense = await db.expense.create({
     data: {
       organizationId: org.id,
@@ -309,7 +323,7 @@ export async function createExpenseAction(fd: FormData) {
       description: p.description,
       category: p.category,
       amount: p.amount,
-      dueAt: new Date(p.dueAt),
+      dueAt,
       supplier: p.supplier || null,
       notes: p.notes || null,
     },
@@ -329,6 +343,7 @@ export async function createExpenseAction(fd: FormData) {
 }
 
 export async function markExpensePaidAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "SECRETARY"]);
 
   const id = z.string().min(1).parse(String(fd.get("id") ?? ""));
@@ -356,6 +371,7 @@ export async function markExpensePaidAction(fd: FormData) {
 }
 
 export async function createRevenueAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "SECRETARY"]);
 
   const p = z.object({
@@ -376,6 +392,16 @@ export async function createRevenueAction(fd: FormData) {
     notes: String(fd.get("notes") ?? "").trim(),
   });
 
+  if (p.costCenterId) {
+    const center = await db.costCenter.findFirst({
+      where: { id: p.costCenterId, organizationId: org.id },
+    });
+    if (!center) throw new Error("Centro de custo inválido.");
+  }
+
+  const receivedAt = new Date(p.receivedAt);
+  if (Number.isNaN(receivedAt.getTime())) throw new Error("Data de recebimento inválida.");
+
   const revenue = await db.revenue.create({
     data: {
       organizationId: org.id,
@@ -383,7 +409,7 @@ export async function createRevenueAction(fd: FormData) {
       description: p.description,
       category: p.category,
       amount: p.amount,
-      receivedAt: new Date(p.receivedAt),
+      receivedAt,
       source: p.source || null,
       notes: p.notes || null,
     },
@@ -403,6 +429,7 @@ export async function createRevenueAction(fd: FormData) {
 }
 
 export async function generateInvoicesBatchAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "SECRETARY"]);
 
   const month = z.coerce.number().int().min(1).max(12).parse(fd.get("month"));
