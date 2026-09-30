@@ -397,14 +397,10 @@ test("concurrent duplicate payment is idempotent by external reference", async (
       await form.locator('input[name="externalReference"]').fill(externalReference);
     }
 
-    const submissions = await Promise.allSettled([
-      paymentFormA.getByRole("button", { name: "Registrar pagamento" }).click(),
-      paymentFormB.getByRole("button", { name: "Registrar pagamento" }).click(),
+    await Promise.all([
+      paymentFormA.evaluate((form) => (form as HTMLFormElement).requestSubmit()),
+      paymentFormB.evaluate((form) => (form as HTMLFormElement).requestSubmit()),
     ]);
-
-    expect(
-      submissions.filter((submission) => submission.status === "fulfilled").length,
-    ).toBeGreaterThanOrEqual(1);
 
     await expect.poll(
       async () =>
