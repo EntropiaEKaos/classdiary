@@ -10,7 +10,7 @@ export default function Home() {
           <a href="#recursos">Recursos</a>
           <a href="#saas">Para escolas</a>
           <a href="#seguranca">Segurança</a>
-          <Link className="btn btn-light" href="/dashboard">Entrar</Link>
+          <Link className="btn btn-light" href="/login">Entrar</Link><Link className="btn btn-primary" href="/cadastro">Testar grátis</Link>
         </nav>
       </header>
 
@@ -21,7 +21,7 @@ export default function Home() {
             <h1>A escola inteira em um só lugar.</h1>
             <p>Presença, notas, aulas, alunos, professores, comunicados e gestão escolar em uma plataforma SaaS moderna, rápida e preparada para crescer com cada instituição.</p>
             <div className="hero-actions">
-              <Link className="btn btn-primary" href="/dashboard">Explorar demonstração</Link>
+              <Link className="btn btn-primary" href="/cadastro">Começar 14 dias grátis</Link>
               <a className="btn btn-light" href="#recursos">Conhecer recursos</a>
             </div>
           </div>
