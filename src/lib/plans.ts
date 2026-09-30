@@ -1,5 +1,3 @@
-"use server";
-
 import type { Prisma } from "../../generated/prisma/client";
 import { db } from "@/lib/db";
 
