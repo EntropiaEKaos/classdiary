@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { assertTrustedMutationOrigin } from "@/lib/security";
 import { retrySerializable } from "@/lib/transaction-retry";
 import { requireSchoolRole } from "@/lib/rbac";
+import { withPlanCapacity } from "@/lib/plans";
 
 export async function updateStudentProfileAction(fd: FormData) {
   await assertTrustedMutationOrigin();
@@ -438,52 +439,69 @@ export async function importStudentsCsvAction(fd: FormData) {
     throw new Error("Importação limitada a 1000 alunos por vez.");
   }
 
-  const rows = lines.slice(1);
-  let imported = 0;
+  const rows = lines.slice(1)
+    .map((row) => {
+      const [name, registration, guardianName, guardianPhone, guardianEmail] =
+        row.split(",").map((value) => value.trim().replace(/^"|"$/g, ""));
+      return { name, registration, guardianName, guardianPhone, guardianEmail };
+    })
+    .filter((row) => row.name && row.registration);
 
-  for (const row of rows) {
-    const [name, registration, guardianName, guardianPhone, guardianEmail] =
-      row.split(",").map((value) => value.trim().replace(/^"|"$/g, ""));
-
-    if (!name || !registration) continue;
-
-    await db.student.upsert({
-      where: {
-        organizationId_registration: {
-          organizationId: org.id,
-          registration,
-        },
-      },
-      update: {
-        name,
-        guardianName: guardianName || null,
-        guardianPhone: guardianPhone || null,
-        guardianEmail: guardianEmail || null,
-        active: true,
-      },
-      create: {
-        organizationId: org.id,
-        name,
-        registration,
-        guardianName: guardianName || null,
-        guardianPhone: guardianPhone || null,
-        guardianEmail: guardianEmail || null,
-      },
-    });
-
-    imported += 1;
-  }
-
-  await db.auditLog.create({
-    data: {
-      userId: user.id,
-      organizationId: org.id,
-      action: "IMPORT",
-      entity: "Student",
-      metadata: { imported },
-    },
+  const registrations = [...new Set(rows.map((row) => row.registration))];
+  const existing = await db.student.findMany({
+    where: { organizationId: org.id, registration: { in: registrations } },
+    select: { registration: true },
   });
+  const existingSet = new Set(existing.map((student) => student.registration));
+  const requested = registrations.filter((registration) => !existingSet.has(registration)).length;
 
+  const imported = await withPlanCapacity(
+    org.id,
+    "students",
+    async (tx) => {
+      let count = 0;
+      for (const row of rows) {
+        await tx.student.upsert({
+          where: {
+            organizationId_registration: {
+              organizationId: org.id,
+              registration: row.registration,
+            },
+          },
+          update: {
+            name: row.name,
+            guardianName: row.guardianName || null,
+            guardianPhone: row.guardianPhone || null,
+            guardianEmail: row.guardianEmail || null,
+            active: true,
+          },
+          create: {
+            organizationId: org.id,
+            name: row.name,
+            registration: row.registration,
+            guardianName: row.guardianName || null,
+            guardianPhone: row.guardianPhone || null,
+            guardianEmail: row.guardianEmail || null,
+          },
+        });
+        count += 1;
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          organizationId: org.id,
+          action: "IMPORT",
+          entity: "Student",
+          metadata: { imported: count, newStudents: requested },
+        },
+      });
+      return count;
+    },
+    Math.max(requested, 1),
+  );
+
+  void imported;
   revalidatePath("/dashboard/importar-alunos");
   revalidatePath("/dashboard/alunos");
 }
