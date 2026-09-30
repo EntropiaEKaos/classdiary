@@ -1,0 +1,60 @@
+name: ClassDiary Release Candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: preview
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      APP_URL: ${{ vars.APP_URL }}
+      NEXT_PUBLIC_APP_URL: ${{ vars.APP_URL }}
+      ADMIN_BOOTSTRAP_TOKEN: ${{ secrets.ADMIN_BOOTSTRAP_TOKEN }}
+      BILLING_PROVIDER: mercado_pago
+      MERCADO_PAGO_ACCESS_TOKEN: ${{ secrets.MERCADO_PAGO_ACCESS_TOKEN }}
+      MERCADO_PAGO_WEBHOOK_SECRET: ${{ secrets.MERCADO_PAGO_WEBHOOK_SECRET }}
+      MERCADO_PAGO_PRICE_STARTER_BRL: ${{ vars.MERCADO_PAGO_PRICE_STARTER_BRL }}
+      MERCADO_PAGO_PRICE_PRO_BRL: ${{ vars.MERCADO_PAGO_PRICE_PRO_BRL }}
+      MERCADO_PAGO_PRICE_ENTERPRISE_BRL: ${{ vars.MERCADO_PAGO_PRICE_ENTERPRISE_BRL }}
+
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Validate production environment
+        run: npm run release:env
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Validate Prisma schema
+        run: npm run db:validate
+
+      - name: Check migration status
+        run: npm run db:migrate:status
+
+      - name: Server Action mutation security guard
+        run: npm run security:actions
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Production build
+        run: npm run build
