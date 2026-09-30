@@ -1,10 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSchoolRole } from "@/lib/rbac";
 import { assertTrustedMutationOrigin } from "@/lib/security";
 import { createSaasCheckout } from "@/lib/saas-checkout";
+import { reconcileBillingSubscription } from "@/lib/billing-reconciliation";
 
 export async function startSaasCheckoutAction(fd: FormData) {
   await assertTrustedMutationOrigin();
@@ -44,4 +46,12 @@ export async function startSaasCheckoutAction(fd: FormData) {
   }
 
   redirect(checkout.checkoutUrl);
+}
+
+
+export async function reconcileSaasBillingAction() {
+  await assertTrustedMutationOrigin();
+  const { org } = await requireSchoolRole(["SCHOOL_ADMIN"]);
+  await reconcileBillingSubscription(org.id);
+  revalidatePath("/dashboard/plano");
 }

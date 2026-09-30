@@ -2298,6 +2298,7 @@ model BillingCheckout {
   seats             Int
   status            String       @default("PENDING")
   provider          String?
+  providerSubscriptionId String?
   externalReference String       @unique
   idempotencyKey    String       @unique
   checkoutUrl       String?

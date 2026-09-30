@@ -10,6 +10,7 @@ export type CheckoutRequest = {
 
 export type CheckoutSession = {
   provider: string;
+  providerSubscriptionId?: string | null;
   externalReference: string;
   checkoutUrl: string;
 };
@@ -19,10 +20,13 @@ export type BillingWebhookEvent = {
   providerEventId: string;
   type:
     | "CHECKOUT_APPROVED"
+    | "PAYMENT_RENEWED"
     | "PAYMENT_FAILED"
     | "SUBSCRIPTION_CANCELED"
     | "NOOP";
   externalReference: string;
+  providerSubscriptionId?: string | null;
+  periodEnd?: string | null;
   payload?: Record<string, unknown>;
 };
 
@@ -31,8 +35,16 @@ export type WebhookContext = {
   topic?: string | null;
 };
 
+export type ReconcileSubscriptionInput = {
+  providerSubscriptionId: string;
+  externalReference: string;
+};
+
 export interface BillingProvider {
   createCheckout(request: CheckoutRequest): Promise<CheckoutSession>;
+  reconcileSubscription?(
+    input: ReconcileSubscriptionInput,
+  ): Promise<BillingWebhookEvent>;
   verifyWebhook?(
     body: string,
     headers: Headers,
