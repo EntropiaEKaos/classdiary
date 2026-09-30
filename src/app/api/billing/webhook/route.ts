@@ -15,7 +15,11 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.text();
-    const event = await provider.verifyWebhook(body, request.headers);
+    const url = new URL(request.url);
+    const event = await provider.verifyWebhook(body, request.headers, {
+      dataId: url.searchParams.get("data.id"),
+      topic: url.searchParams.get("type"),
+    });
     const result = await processBillingWebhookEvent(event);
 
     return NextResponse.json(
