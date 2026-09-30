@@ -117,9 +117,9 @@ export async function acceptInvitationAction(fd: FormData) {
   }
 
   if (
-    ["GUARDIAN", "STUDENT"].includes(freshInvite.role) &&
+    ["GUARDIAN", "STUDENT"].includes(invite.role) &&
     (!invite.student ||
-      invite.student.organizationId !== freshInvite.organizationId ||
+      invite.student.organizationId !== invite.organizationId ||
       !invite.student.active)
   ) {
     redirect("/aceitar-convite?error=invalid");
@@ -273,7 +273,7 @@ export async function acceptInvitationAction(fd: FormData) {
 
       const seat = await tx.membership.findFirst({
         where: {
-          organizationId: freshInvite.organizationId,
+          organizationId: invite.organizationId,
           userId: current.id,
         },
         select: { id: true },
