@@ -13,6 +13,7 @@ export type CreateSaasCheckoutInput = {
   seats: number;
   customerEmail?: string | null;
   returnUrl: string;
+  idempotencyKey: string;
   provider?: BillingProvider;
 };
 
@@ -25,17 +26,58 @@ export async function createSaasCheckout(input: CreateSaasCheckoutInput) {
     );
   }
 
+  const idempotencyKey = input.idempotencyKey.trim();
+  if (idempotencyKey.length < 12 || idempotencyKey.length > 200) {
+    throw new Error("Chave de idempotência de checkout inválida.");
+  }
+
   const externalReference = `SAAS-${randomUUID()}`;
-  const checkout = await db.billingCheckout.create({
-    data: {
+  const checkout = await db.billingCheckout.upsert({
+    where: { idempotencyKey },
+    update: {},
+    create: {
       organizationId: input.organizationId,
       requestedByUserId: input.requestedByUserId,
       plan: input.plan,
       seats: input.seats,
       status: "PENDING",
       externalReference,
+      idempotencyKey,
     },
   });
+
+  if (
+    checkout.organizationId !== input.organizationId ||
+    checkout.plan !== input.plan ||
+    checkout.seats !== input.seats
+  ) {
+    throw new Error("Chave de idempotência já utilizada com outro checkout.");
+  }
+
+  if (checkout.status === "READY") return checkout;
+  if (checkout.status === "FAILED") {
+    throw new Error(checkout.failureReason ?? "Checkout anterior falhou.");
+  }
+
+  const claim = await db.billingCheckout.updateMany({
+    where: { id: checkout.id, status: "PENDING" },
+    data: { status: "PROCESSING" },
+  });
+
+  if (claim.count === 0) {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const current = await db.billingCheckout.findUnique({
+        where: { id: checkout.id },
+      });
+      if (!current) throw new Error("Checkout não encontrado.");
+      if (current.status === "READY") return current;
+      if (current.status === "FAILED") {
+        throw new Error(current.failureReason ?? "Checkout anterior falhou.");
+      }
+    }
+    throw new Error("Checkout já está sendo processado.");
+  }
 
   const provider = input.provider ?? getBillingProvider();
 
