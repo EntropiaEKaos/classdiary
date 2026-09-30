@@ -61,6 +61,10 @@ export async function createAcademicPeriodAction(fd: FormData) {
   const startsAt = new Date(p.startsAt);
   const endsAt = new Date(p.endsAt);
 
+  if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) {
+    throw new Error("Datas do período inválidas.");
+  }
+
   if (endsAt <= startsAt) {
     throw new Error("A data final do período deve ser posterior à data inicial.");
   }
@@ -114,11 +118,22 @@ export async function createTimetableEntryAction(fd: FormData) {
 
   if (p.startsAt >= p.endsAt) throw new Error("O horário final deve ser maior que o inicial.");
 
-  const [group, subject] = await Promise.all([
+  const [group, subject, classSubject] = await Promise.all([
     db.classGroup.findFirst({ where: { id: p.classGroupId, organizationId: org.id } }),
     db.subject.findFirst({ where: { id: p.subjectId, organizationId: org.id } }),
+    db.classSubject.findFirst({
+      where: {
+        classGroupId: p.classGroupId,
+        subjectId: p.subjectId,
+        classGroup: { organizationId: org.id },
+        subject: { organizationId: org.id },
+      },
+    }),
   ]);
   if (!group || !subject) throw new Error("Turma ou disciplina inválida.");
+  if (!classSubject) {
+    throw new Error("Vincule a disciplina à turma antes de criar o horário.");
+  }
 
   if (p.teacherId) {
     const teacher = await db.membership.findFirst({
@@ -129,6 +144,9 @@ export async function createTimetableEntryAction(fd: FormData) {
       },
     });
     if (!teacher) throw new Error("Professor inválido para esta escola.");
+    if (classSubject.teacherId && classSubject.teacherId !== p.teacherId) {
+      throw new Error("O professor não corresponde ao vínculo da turma/disciplina.");
+    }
   }
 
   const conflict = await db.timetableEntry.findFirst({
