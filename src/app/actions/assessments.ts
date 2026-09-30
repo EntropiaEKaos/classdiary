@@ -225,7 +225,7 @@ export async function createQuestionBankItemAction(fd: FormData) {
       prompt: p.prompt,
       explanation: p.explanation || null,
       difficulty: p.difficulty,
-      options,
+      options: options ?? undefined,
       correctAnswer: p.correctAnswer || null,
       tags: p.tags ? p.tags.split(",").map((tag) => tag.trim()).filter(Boolean) : [],
       maxScore: p.maxScore,
@@ -302,7 +302,7 @@ export async function createExamAction(fd: FormData) {
     subject.id,
   );
 
-  const exam = await db.exam.create({
+  await db.exam.create({
     data: {
       organizationId: org.id,
       classGroupId: group.id,
@@ -324,7 +324,6 @@ export async function createExamAction(fd: FormData) {
   });
 
   revalidatePath("/dashboard/provas");
-  return exam.id;
 }
 
 export async function addQuestionToExamAction(fd: FormData) {
@@ -418,7 +417,7 @@ export async function generateExamFromCompetencyAction(fd: FormData) {
     throw new Error("Nenhuma questão encontrada para essa competência.");
   }
 
-  const exam = await db.exam.create({
+  await db.exam.create({
     data: {
       organizationId: org.id,
       classGroupId: p.classGroupId,
@@ -442,7 +441,6 @@ export async function generateExamFromCompetencyAction(fd: FormData) {
   });
 
   revalidatePath("/dashboard/provas");
-  return exam.id;
 }
 
 export async function publishExamAction(fd: FormData) {
@@ -781,10 +779,14 @@ export async function applyRubricAssessmentAction(fd: FormData) {
     throw new Error("Pontuação acima da nota máxima da rubrica.");
   }
 
-  let details: unknown = null;
+  let details: Record<string, string | number | boolean | null> | undefined;
   if (p.details) {
     try {
-      details = JSON.parse(p.details);
+      const parsed = JSON.parse(p.details);
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+        throw new Error("Detalhes da rubrica devem ser um objeto JSON.");
+      }
+      details = parsed;
     } catch {
       throw new Error("Detalhes da rubrica devem ser JSON válido.");
     }
@@ -799,7 +801,7 @@ export async function applyRubricAssessmentAction(fd: FormData) {
       authorId: user.id,
       totalScore: p.totalScore,
       feedback: p.feedback || null,
-      details: details as object | null,
+      details,
     },
   });
 
@@ -952,7 +954,7 @@ export async function generateExamFromBlueprintAction(fd: FormData) {
     }
   }
 
-  const exam = await db.exam.create({
+  await db.exam.create({
     data: {
       organizationId: org.id,
       classGroupId: p.classGroupId,
@@ -975,7 +977,6 @@ export async function generateExamFromBlueprintAction(fd: FormData) {
   });
 
   revalidatePath("/dashboard/provas");
-  return exam.id;
 }
 
 
@@ -1054,7 +1055,7 @@ export async function generateRecoveryExamAction(fd: FormData) {
     original.subjectId,
   );
 
-  const exam = await db.$transaction(async (tx) => {
+  await db.$transaction(async (tx) => {
     const created = await tx.exam.create({
       data: {
         organizationId: org.id,
@@ -1109,7 +1110,6 @@ export async function generateRecoveryExamAction(fd: FormData) {
 
   revalidatePath("/dashboard/recuperacoes-avaliacoes");
   revalidatePath("/provas");
-  return exam.id;
 }
 
 export async function requestExamReviewAction(fd: FormData) {
