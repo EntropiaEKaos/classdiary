@@ -9,13 +9,16 @@ export async function GET() {
   try {
     await db.$queryRaw`SELECT 1`;
 
-    return NextResponse.json({
-      status: "ok",
-      service: "classdiary",
-      database: "ok",
-      latencyMs: Date.now() - startedAt,
-      timestamp: new Date().toISOString(),
-    });
+    return NextResponse.json(
+      {
+        status: "ok",
+        service: "classdiary",
+        database: "ok",
+        latencyMs: Date.now() - startedAt,
+        timestamp: new Date().toISOString(),
+      },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
     console.error("healthcheck_failed", {
       message: error instanceof Error ? error.message : "unknown_error",
@@ -28,7 +31,7 @@ export async function GET() {
         database: "unavailable",
         timestamp: new Date().toISOString(),
       },
-      { status: 503 },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
 }
