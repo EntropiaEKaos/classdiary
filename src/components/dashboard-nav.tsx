@@ -68,6 +68,7 @@ const items: NavItem[] = [
   { href: "/dashboard/documentos", label: "Documentos", Icon: FileText, module: "secretary" },
   { href: "/dashboard/financeiro", label: "Financeiro", Icon: ChartNoAxesColumnIncreasing, module: "finance" },
   { href: "/dashboard/auditoria", label: "Auditoria", Icon: FileText, roles: ["SCHOOL_ADMIN", "COORDINATOR"] },
+  { href: "/dashboard/privacidade", label: "Privacidade e dados", Icon: FileText, roles: ["SCHOOL_ADMIN", "COORDINATOR"] },
   { href: "/dashboard/permissoes", label: "Permissões", Icon: Users, roles: ["SCHOOL_ADMIN"] },
   { href: "/dashboard/templates", label: "Templates", Icon: FileText, module: "secretary" },
   { href: "/dashboard/arquivos", label: "Arquivos", Icon: Files, module: "secretary" },
