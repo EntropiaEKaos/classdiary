@@ -3,8 +3,10 @@ import {revalidatePath} from "next/cache";
 import {z} from "zod";
 import {db} from "@/lib/db";
 import {requirePlatformOwner} from "@/lib/auth";
+import {assertTrustedMutationOrigin} from "@/lib/security";
 
 export async function updateSubscriptionAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const user=await requirePlatformOwner();
   const p=z.object({
     organizationId:z.string().min(1),
@@ -17,6 +19,11 @@ export async function updateSubscriptionAction(fd:FormData){
     status:String(fd.get("status")??"TRIAL"),
     seats:fd.get("seats")??20
   });
+
+  const org=await db.organization.findFirst({
+    where:{id:p.organizationId,slug:{not:"classdiary-platform"}}
+  });
+  if(!org) throw new Error("Organização inválida");
 
   const subscription=await db.subscription.upsert({
     where:{organizationId:p.organizationId},
@@ -33,6 +40,7 @@ export async function updateSubscriptionAction(fd:FormData){
 }
 
 export async function toggleOrganizationAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const user=await requirePlatformOwner();
   const organizationId=z.string().min(1).parse(String(fd.get("organizationId")??""));
   const org=await db.organization.findUnique({where:{id:organizationId}});
