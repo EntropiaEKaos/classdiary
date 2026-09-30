@@ -295,16 +295,38 @@ test("concurrent duplicate payment is idempotent by external reference", async (
       pageB.goto("/dashboard/financeiro/cobrancas"),
     ]);
 
-    const invoiceA = pageA.locator("section.table-card").filter({ hasText: studentName }).filter({ hasText: "Mensalidade 11/2026" });
-    const invoiceB = pageB.locator("section.table-card").filter({ hasText: studentName }).filter({ hasText: "Mensalidade 11/2026" });
+    const paymentFormA = pageA.locator(
+      `form:has(input[name="invoiceId"][value="${invoice!.id}"])`,
+    );
+    const paymentFormB = pageB.locator(
+      `form:has(input[name="invoiceId"][value="${invoice!.id}"])`,
+    );
 
-    await invoiceA.locator('input[name="externalReference"]').fill(externalReference);
-    await invoiceB.locator('input[name="externalReference"]').fill(externalReference);
+    await expect(paymentFormA).toHaveCount(1);
+    await expect(paymentFormB).toHaveCount(1);
 
-    await Promise.all([
-      invoiceA.getByRole("button", { name: "Registrar pagamento" }).click(),
-      invoiceB.getByRole("button", { name: "Registrar pagamento" }).click(),
+    for (const form of [paymentFormA, paymentFormB]) {
+      await form.locator('input[name="amount"]').fill("199.90");
+      await form.locator('select[name="method"]').selectOption("PIX");
+      await form.locator('input[name="externalReference"]').fill(externalReference);
+    }
+
+    const submissions = await Promise.allSettled([
+      paymentFormA.getByRole("button", { name: "Registrar pagamento" }).click(),
+      paymentFormB.getByRole("button", { name: "Registrar pagamento" }).click(),
     ]);
+
+    expect(
+      submissions.filter((submission) => submission.status === "fulfilled").length,
+    ).toBeGreaterThanOrEqual(1);
+
+    await expect.poll(
+      async () =>
+        db.payment.count({
+          where: { invoiceId: invoice!.id, externalReference },
+        }),
+      { timeout: 5_000 },
+    ).toBe(1);
 
     const [payments, receipts, finalInvoice] = await Promise.all([
       db.payment.count({ where: { invoiceId: invoice!.id, externalReference } }),
