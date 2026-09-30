@@ -78,8 +78,17 @@ test("approved billing webhook activates subscription exactly once", async () =>
     expect(events[0].processedAt).not.toBeNull();
     expect(audits).toHaveLength(1);
   } finally {
+    const persistedEvent = await db.billingEvent.findUnique({
+      where: { providerEventId: event.providerEventId },
+      select: { id: true },
+    });
     await db.auditLog.deleteMany({
-      where: { organizationId: org!.id, entityId: { in: [checkout.id] } },
+      where: {
+        organizationId: org!.id,
+        entityId: {
+          in: [checkout.id, ...(persistedEvent ? [persistedEvent.id] : [])],
+        },
+      },
     });
     await db.billingEvent.deleteMany({
       where: { providerEventId: event.providerEventId },
