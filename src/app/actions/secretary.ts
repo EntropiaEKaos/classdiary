@@ -347,7 +347,7 @@ export async function calculateAnnualResultAction(fd: FormData) {
   });
   if (!student) throw new Error("Aluno inválido.");
 
-  const weightedGradeTotal = student.grades.reduce
+  const weightedGradeTotal = student.grades.reduce(
     (sum, grade) =>
       sum +
       ((Number(grade.value) / Number(grade.maxValue)) * 10) *
