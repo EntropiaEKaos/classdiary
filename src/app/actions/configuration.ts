@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSchoolRole } from "@/lib/rbac";
+import { assertTrustedMutationOrigin } from "@/lib/security";
 
 export async function updateAcademicSettingsAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "COORDINATOR"]);
 
   const p = z.object({
@@ -39,6 +41,7 @@ export async function updateAcademicSettingsAction(fd: FormData) {
 }
 
 export async function createAcademicPeriodAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "COORDINATOR"]);
 
   const year = await db.schoolYear.findFirst({
@@ -98,6 +101,7 @@ export async function createAcademicPeriodAction(fd: FormData) {
 }
 
 export async function createTimetableEntryAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "COORDINATOR", "SECRETARY"]);
 
   const p = z.object({
