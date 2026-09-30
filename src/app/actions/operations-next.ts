@@ -7,6 +7,7 @@ import { requireModulePermission } from "@/lib/rbac";
 import { assertTrustedMutationOrigin } from "@/lib/security";
 
 export async function createMedicalRecordAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {user,org}=await requireModulePermission("health","create");
   const p=z.object({studentId:z.string().min(1),type:z.string().min(1),summary:z.string().min(2),details:z.string().optional(),actionTaken:z.string().optional(),notifiedGuardian:z.boolean()}).parse({
     studentId:String(fd.get("studentId")??""),type:String(fd.get("type")??"").trim(),summary:String(fd.get("summary")??"").trim(),
@@ -33,6 +34,7 @@ export async function createGuardianAuthorizationAction(fd:FormData){
 }
 
 export async function createResourceAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("resources","create");
   const p=z.object({name:z.string().min(2),type:z.string().min(1),capacity:z.coerce.number().int().min(1).optional(),location:z.string().optional()}).parse({
     name:String(fd.get("name")??"").trim(),type:String(fd.get("type")??"").trim(),capacity:fd.get("capacity")||undefined,location:String(fd.get("location")??"").trim()
@@ -42,6 +44,7 @@ export async function createResourceAction(fd:FormData){
 }
 
 export async function reserveResourceAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {user,org}=await requireModulePermission("resources","create");
   const p=z.object({resourceId:z.string().min(1),title:z.string().min(2),startsAt:z.string().min(1),endsAt:z.string().min(1),notes:z.string().optional()}).parse({
     resourceId:String(fd.get("resourceId")??""),title:String(fd.get("title")??"").trim(),startsAt:String(fd.get("startsAt")??""),endsAt:String(fd.get("endsAt")??""),notes:String(fd.get("notes")??"").trim()
@@ -57,6 +60,7 @@ export async function reserveResourceAction(fd:FormData){
 }
 
 export async function createMaintenancePlanAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("maintenance","create");
   const p=z.object({assetId:z.string().min(1),name:z.string().min(2),frequencyDays:z.coerce.number().int().min(1),nextDueAt:z.string().min(1)}).parse({
     assetId:String(fd.get("assetId")??""),name:String(fd.get("name")??"").trim(),frequencyDays:fd.get("frequencyDays"),nextDueAt:String(fd.get("nextDueAt")??"")
@@ -84,6 +88,7 @@ export async function createMaintenanceTicketAction(fd:FormData){
 }
 
 export async function closeMaintenanceTicketAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("maintenance","update");
   const id=z.string().min(1).parse(String(fd.get("id")??""));
   const ticket=await db.maintenanceTicket.findFirst({where:{id,organizationId:org.id}});
@@ -93,6 +98,7 @@ export async function closeMaintenanceTicketAction(fd:FormData){
 }
 
 export async function createSupplierAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("procurement","create");
   const p=z.object({name:z.string().min(2),document:z.string().optional(),email:z.string().email().optional().or(z.literal("")),phone:z.string().optional(),category:z.string().optional()}).parse({
     name:String(fd.get("name")??"").trim(),document:String(fd.get("document")??"").trim(),email:String(fd.get("email")??"").trim(),phone:String(fd.get("phone")??"").trim(),category:String(fd.get("category")??"").trim()
@@ -117,6 +123,7 @@ export async function createPurchaseOrderAction(fd:FormData){
 }
 
 export async function updatePurchaseOrderStatusAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("procurement","update");
   const p=z.object({id:z.string().min(1),status:z.enum(["DRAFT","ORDERED","RECEIVED","CANCELED"])}).parse({id:String(fd.get("id")??""),status:String(fd.get("status")??"")});
   const order=await db.purchaseOrder.findFirst({where:{id:p.id,organizationId:org.id}});
@@ -197,6 +204,7 @@ export async function answerGuardianAuthorizationAction(fd:FormData){
 
 
 export async function runAutomationRulesAction(){
+  await assertTrustedMutationOrigin();
   const {user,org}=await requireModulePermission("automation","update");
   const rules=await db.automationRule.findMany({where:{organizationId:org.id,active:true}});
   const recipients=await db.membership.findMany({
