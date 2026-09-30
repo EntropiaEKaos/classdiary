@@ -1,6 +1,30 @@
+function isRetryableSerializationError(error: unknown) {
+  if (typeof error !== "object" || error === null) return false;
+
+  const candidate = error as {
+    code?: unknown;
+    message?: unknown;
+    meta?: unknown;
+  };
+
+  const code = String(candidate.code ?? "");
+  const message = String(candidate.message ?? "").toLowerCase();
+  const meta = JSON.stringify(candidate.meta ?? {}).toLowerCase();
+
+  return (
+    code === "P2034" ||
+    code === "40001" ||
+    message.includes("could not serialize access") ||
+    message.includes("serialization failure") ||
+    message.includes("concurrent update") ||
+    meta.includes("could not serialize access") ||
+    meta.includes("40001")
+  );
+}
+
 export async function retrySerializable<T>(
   operation: () => Promise<T>,
-  maxAttempts = 3,
+  maxAttempts = 5,
 ): Promise<T> {
   let lastError: unknown;
 
@@ -9,16 +33,12 @@ export async function retrySerializable<T>(
       return await operation();
     } catch (error) {
       lastError = error;
-      const code =
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error
-          ? String((error as { code?: unknown }).code ?? "")
-          : "";
 
-      if (code !== "P2034" || attempt === maxAttempts) {
+      if (!isRetryableSerializationError(error) || attempt === maxAttempts) {
         throw error;
       }
+
+      await new Promise((resolve) => setTimeout(resolve, attempt * 25));
     }
   }
 
