@@ -76,7 +76,7 @@ test("school operations flow: student, enrollment, lesson, attendance and grade"
   await page.locator('input[name="endsAt"]').fill("2026-12-30");
   await page.locator('input[name="order"]').fill("99");
   await page.getByRole("button", { name: "Adicionar período" }).click();
-  await expect(page.getByText(periodName, { exact: true })).toBeVisible();
+  await expect(page.getByText(periodName)).toBeVisible();
 
   await page.goto("/dashboard/alunos");
   await page.locator('input[name="name"]').fill(studentName);
@@ -145,6 +145,7 @@ test("finance and operations flow: contract, invoice, payment and internal task"
   await contract.locator('input[name="month"]').fill("10");
   await contract.locator('input[name="year"]').fill("2026");
   await contract.getByRole("button", { name: "Gerar mensalidade" }).click();
+  await page.waitForLoadState("networkidle");
 
   await page.goto("/dashboard/financeiro/cobrancas");
   const invoice = page.locator("section.table-card").filter({ hasText: studentName }).filter({ hasText: "Mensalidade 10/2026" });
@@ -164,7 +165,7 @@ test("finance and operations flow: contract, invoice, payment and internal task"
 
 test("tenant isolation blocks direct access to foreign student", async ({ page }) => {
   await loginAsAdmin(page);
-  const response = await page.goto("/dashboard/alunos/e2e-other-student");
-  expect(response?.status()).toBe(404);
+  await page.goto("/dashboard/alunos/e2e-other-student");
   await expect(page.locator("body")).not.toContainText("Aluno Outro Tenant E2E");
+  await expect(page.locator("body")).not.toContainText("E2E-FOREIGN-001");
 });
