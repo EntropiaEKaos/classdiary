@@ -96,9 +96,13 @@ export async function withPlanCapacity<T>(
   organizationId: string,
   resource: PlanResource,
   operation: (tx: Prisma.TransactionClient) => Promise<T>,
-  requested = 1,
+  requested:
+    | number
+    | ((tx: Prisma.TransactionClient) => Promise<number>) = 1,
 ) {
-  if (requested < 0) throw new Error("Quantidade de capacidade inválida.");
+  if (typeof requested === "number" && requested < 0) {
+    throw new Error("Quantidade de capacidade inválida.");
+  }
 
   return retrySerializable(() => db.$transaction(async (tx) => {
     const locked = await tx.$queryRaw<
@@ -121,18 +125,24 @@ export async function withPlanCapacity<T>(
 
     assertWritableSubscription(subscription);
 
+    const requestedCount =
+      typeof requested === "function" ? await requested(tx) : requested;
+    if (requestedCount < 0) {
+      throw new Error("Quantidade de capacidade inválida.");
+    }
+
     const plan = normalizePlan(subscription.plan);
     const current = await currentUsage(tx, organizationId, resource);
     const limit = resourceLimit(plan, subscription.seats, resource);
 
-    if (requested > 0 && limit !== null && current + requested > limit) {
+    if (requestedCount > 0 && limit !== null && current + requestedCount > limit) {
       const labels: Record<PlanResource, string> = {
         students: "alunos ativos",
         classes: "turmas",
         seats: "usuários",
       };
       throw new Error(
-        `Limite do plano ${PLAN_CATALOG[plan].label} excedido para ${labels[resource]} (${current} atuais + ${requested} solicitados / ${limit}).`,
+        `Limite do plano ${PLAN_CATALOG[plan].label} excedido para ${labels[resource]} (${current} atuais + ${requestedCount} solicitados / ${limit}).`,
       );
     }
 
