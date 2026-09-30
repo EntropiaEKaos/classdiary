@@ -1,5 +1,6 @@
 import { expect, Page, test } from "@playwright/test";
 import { db } from "../src/lib/db";
+import { createSaasCheckout } from "../src/lib/saas-checkout";
 
 async function loginAsAdmin(page: Page) {
   await page.goto("/login");
@@ -428,6 +429,72 @@ test("concurrent duplicate payment is idempotent by external reference", async (
 
 
 
+
+
+
+test("SaaS checkout is idempotent under concurrent duplicate requests", async () => {
+  const org = await db.organization.findUnique({
+    where: { slug: "escola-demo" },
+    include: { memberships: { take: 1 } },
+  });
+  expect(org).not.toBeNull();
+  expect(org!.memberships.length).toBeGreaterThan(0);
+
+  const key = `checkout-e2e-${Date.now()}`;
+  let providerCalls = 0;
+  const provider = {
+    async createCheckout() {
+      providerCalls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      return {
+        provider: "E2E_FAKE",
+        externalReference: `provider-${key}`,
+        checkoutUrl: "https://example.test/checkout",
+      };
+    },
+  };
+
+  try {
+    const [first, second] = await Promise.all([
+      createSaasCheckout({
+        organizationId: org!.id,
+        requestedByUserId: org!.memberships[0].userId,
+        plan: "PRO",
+        seats: 50,
+        customerEmail: "billing-e2e@example.local",
+        returnUrl: "http://127.0.0.1:3000/dashboard/plano",
+        idempotencyKey: key,
+        provider,
+      }),
+      createSaasCheckout({
+        organizationId: org!.id,
+        requestedByUserId: org!.memberships[0].userId,
+        plan: "PRO",
+        seats: 50,
+        customerEmail: "billing-e2e@example.local",
+        returnUrl: "http://127.0.0.1:3000/dashboard/plano",
+        idempotencyKey: key,
+        provider,
+      }),
+    ]);
+
+    expect(first.id).toBe(second.id);
+    expect(first.status).toBe("READY");
+    expect(second.status).toBe("READY");
+    expect(providerCalls).toBe(1);
+
+    const rows = await db.billingCheckout.findMany({
+      where: { idempotencyKey: key },
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].provider).toBe("E2E_FAKE");
+    expect(rows[0].checkoutUrl).toBe("https://example.test/checkout");
+  } finally {
+    await db.billingCheckout.deleteMany({
+      where: { idempotencyKey: key },
+    });
+  }
+});
 
 test("trial lifecycle allows grace period and blocks mutations after grace", async ({ page }) => {
   const org = await db.organization.findUnique({
