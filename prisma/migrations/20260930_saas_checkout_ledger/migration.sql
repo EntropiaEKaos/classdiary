@@ -7,6 +7,7 @@ CREATE TABLE "BillingCheckout" (
     "status" TEXT NOT NULL DEFAULT 'PENDING',
     "provider" TEXT,
     "externalReference" TEXT NOT NULL,
+    "idempotencyKey" TEXT NOT NULL,
     "checkoutUrl" TEXT,
     "failureReason" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -16,6 +17,7 @@ CREATE TABLE "BillingCheckout" (
 );
 
 CREATE UNIQUE INDEX "BillingCheckout_externalReference_key" ON "BillingCheckout"("externalReference");
+CREATE UNIQUE INDEX "BillingCheckout_idempotencyKey_key" ON "BillingCheckout"("idempotencyKey");
 CREATE INDEX "BillingCheckout_organizationId_createdAt_idx" ON "BillingCheckout"("organizationId", "createdAt");
 CREATE INDEX "BillingCheckout_organizationId_status_idx" ON "BillingCheckout"("organizationId", "status");
 
