@@ -64,3 +64,29 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Start production server
+        run: |
+          npm run start > /tmp/classdiary-next.log 2>&1 &
+          echo $! > /tmp/classdiary-next.pid
+
+      - name: Wait for application readiness
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:3000/api/health/ready >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/classdiary-next.log
+          exit 1
+
+      - name: Critical E2E
+        env:
+          E2E_BASE_URL: http://127.0.0.1:3000
+          SEED_OWNER_EMAIL: admin@classdiary.local
+          SEED_OWNER_PASSWORD: ChangeMe123!
+        run: npm run e2e
