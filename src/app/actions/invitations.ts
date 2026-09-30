@@ -133,12 +133,6 @@ export async function acceptInvitationAction(fd: FormData) {
     redirect("/aceitar-convite?error=disabled");
   }
 
-  const existingSeat = existing
-    ? await db.membership.findFirst({
-        where: { organizationId: invite.organizationId, userId: existing.id },
-      })
-    : null;
-
   const passwordHash =
     existing?.passwordHash ? existing.passwordHash : await hash(password, 12);
 
@@ -224,11 +218,33 @@ export async function acceptInvitationAction(fd: FormData) {
     });
   };
 
-  if (existingSeat) {
-    await db.$transaction(accept);
-  } else {
-    await withPlanCapacity(invite.organizationId, "seats", accept);
-  }
+  await withPlanCapacity(
+    invite.organizationId,
+    "seats",
+    accept,
+    async (tx) => {
+      const current = await tx.user.findUnique({
+        where: { email: invite.email },
+        select: { id: true, active: true },
+      });
+
+      if (current && !current.active) {
+        throw new Error("Esta conta está desativada.");
+      }
+
+      if (!current) return 1;
+
+      const seat = await tx.membership.findFirst({
+        where: {
+          organizationId: invite.organizationId,
+          userId: current.id,
+        },
+        select: { id: true },
+      });
+
+      return seat ? 0 : 1;
+    },
+  );
 
   redirect("/login");
 }
