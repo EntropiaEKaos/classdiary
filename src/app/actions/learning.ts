@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireModulePermission, requireSchoolRole } from "@/lib/rbac";
 import { requireUser, activeOrganization } from "@/lib/auth";
+import { assertTrustedMutationOrigin } from "@/lib/security";
 
 async function assertLearningTeacherScope(params: {
   userId: string;
@@ -45,6 +46,7 @@ async function assertLearningTeacherScope(params: {
 }
 
 export async function createAssignmentAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole([
     "SCHOOL_ADMIN",
     "COORDINATOR",
@@ -138,6 +140,7 @@ export async function createAssignmentAction(fd: FormData) {
 }
 
 export async function submitAssignmentAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const user = await requireUser();
   const org = await activeOrganization();
   if (!org) redirect("/login");
@@ -219,6 +222,7 @@ export async function submitAssignmentAction(fd: FormData) {
 }
 
 export async function createRecoveryAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole([
     "SCHOOL_ADMIN",
     "COORDINATOR",
@@ -318,6 +322,7 @@ export async function createRecoveryAction(fd: FormData) {
 }
 
 export async function createCouncilDecisionAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole([
     "SCHOOL_ADMIN",
     "COORDINATOR",
@@ -394,6 +399,7 @@ export async function createCouncilDecisionAction(fd: FormData) {
 }
 
 export async function createAcademicDocumentAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole([
     "SCHOOL_ADMIN",
     "COORDINATOR",
@@ -443,6 +449,7 @@ export async function createAcademicDocumentAction(fd: FormData) {
 }
 
 export async function generateDocumentFromTemplateAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("secretary", "create");
 
   const p = z
