@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { createSession, destroySession } from "@/lib/auth";
+import { assertTrustedMutationOrigin } from "@/lib/security";
 
 const WINDOW_MS = 15 * 60_000;
 const BLOCK_MS = 15 * 60_000;
@@ -64,6 +65,7 @@ async function recordFailure(key: string) {
 }
 
 export async function loginAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const parsed = z
     .object({
       email: z.string().email(),
@@ -115,6 +117,7 @@ export async function loginAction(fd: FormData) {
 }
 
 export async function logoutAction() {
+  await assertTrustedMutationOrigin();
   await destroySession();
   redirect("/login");
 }
