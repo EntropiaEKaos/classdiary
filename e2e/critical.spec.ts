@@ -134,7 +134,7 @@ test("finance and operations flow: contract, invoice, payment and internal task"
   await expect(page.getByText(studentName, { exact: true })).toBeVisible();
 
   await page.goto("/dashboard/financeiro/contratos");
-  await page.locator('select[name="studentId"]').selectOption({ label: new RegExp(studentName) });
+  await page.locator('select[name="studentId"]').selectOption({ label: studentName + " · " + registration });
   await page.locator('input[name="title"]').fill(contractTitle);
   await page.locator('input[name="startsAt"]').fill("2026-01-01");
   await page.locator('input[name="monthlyAmount"]').fill("321.45");
@@ -166,5 +166,5 @@ test("tenant isolation blocks direct access to foreign student", async ({ page }
   await loginAsAdmin(page);
   const response = await page.goto("/dashboard/alunos/e2e-other-student");
   expect(response?.status()).toBe(404);
-  await expect(page).not.toContainText("Aluno Outro Tenant E2E");
+  await expect(page.locator("body")).not.toContainText("Aluno Outro Tenant E2E");
 });
