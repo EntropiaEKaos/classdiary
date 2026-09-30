@@ -1,4 +1,4 @@
-import type { Prisma } from "../../generated/prisma/client";
+import type { Prisma, SubscriptionStatus } from "../../generated/prisma/client";
 import { db } from "@/lib/db";
 import { retrySerializable } from "@/lib/transaction-retry";
 import { subscriptionAccessState } from "@/lib/subscription-lifecycle";
@@ -57,7 +57,7 @@ async function currentUsage(
 }
 
 function assertWritableSubscription(subscription: {
-  status: "TRIAL" | "ACTIVE" | "PAST_DUE" | "CANCELED";
+  status: SubscriptionStatus;
   trialEndsAt: Date | null;
   currentPeriodEnd: Date | null;
 }) {
@@ -107,7 +107,7 @@ export async function withPlanCapacity<T>(
       Array<{
         id: string;
         plan: string;
-        status: string;
+        status: SubscriptionStatus;
         seats: number;
         trialEndsAt: Date | null;
         currentPeriodEnd: Date | null;
