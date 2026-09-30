@@ -2,6 +2,7 @@ import Link from "next/link";
 import {toggleOrganizationAction,updateSubscriptionAction} from "@/app/actions/billing";
 import {db} from "@/lib/db";
 import {requirePlatformOwner} from "@/lib/auth";
+import { PLAN_CATALOG, normalizePlan } from "@/lib/plans";
 
 export const dynamic="force-dynamic";
 
@@ -13,6 +14,7 @@ export default async function SuperAdminPage(){
       where:{slug:{not:"classdiary-platform"}},
       include:{
         subscription:true,
+        memberships:{select:{userId:true}},
         _count:{select:{memberships:true,students:true,classGroups:true}}
       },
       orderBy:{createdAt:"desc"}
@@ -21,6 +23,13 @@ export default async function SuperAdminPage(){
     db.student.count(),
     db.subscription.count({where:{status:"TRIAL"}})
   ]);
+
+  const usageByOrg = new Map(organizations.map((org)=>{
+    const plan=normalizePlan(org.subscription?.plan);
+    const limits=PLAN_CATALOG[plan];
+    const uniqueUsers=new Set(org.memberships?.map((membership)=>membership.userId)??[]).size;
+    return [org.id,{plan,limits,users:uniqueUsers}] as const;
+  }));
 
   return <main className="main">
     <div className="page-head">
@@ -41,15 +50,15 @@ export default async function SuperAdminPage(){
 
     <section style={{marginTop:20}}>
       <div className="admin-grid">
-        {organizations.map(org=><article className="tenant-card" key={org.id}>
+        {organizations.map(org=>{const usage=usageByOrg.get(org.id)!;return <article className="tenant-card" key={org.id}>
           <span className="pill">{org.subscription?.status??"SEM PLANO"}</span>
           <h3 style={{marginTop:12}}>{org.name}</h3>
           <div className="muted">{org.slug}</div>
           <div className="tenant-meta">
-            <span>Plano: <strong>{org.subscription?.plan??"—"}</strong></span>
-            <span>Alunos: <strong>{org._count.students}</strong></span>
-            <span>Turmas: <strong>{org._count.classGroups}</strong></span>
-            <span>Usuários: <strong>{org._count.memberships}</strong></span>
+            <span>Plano: <strong>{usage.limits.label}</strong></span>
+            <span>Alunos: <strong>{org._count.students}/{usage.limits.maxStudents??"∞"}</strong></span>
+            <span>Turmas: <strong>{org._count.classGroups}/{usage.limits.maxClasses??"∞"}</strong></span>
+            <span>Usuários: <strong>{usage.users}/{org.subscription?.seats??usage.limits.maxSeats??"∞"}</strong></span>
             <span>Status: <strong>{org.active?"Ativa":"Bloqueada"}</strong></span>
           </div>
           <form action={updateSubscriptionAction} className="form-stack" style={{marginTop:16}}>
@@ -67,7 +76,7 @@ export default async function SuperAdminPage(){
             <input type="hidden" name="organizationId" value={org.id}/>
             <button className="btn btn-light">{org.active?"Bloquear escola":"Desbloquear escola"}</button>
           </form>
-        </article>)}
+        </article>})}
       </div>
       {organizations.length===0?<div className="table-card"><p className="muted">Nenhuma escola cliente criada ainda.</p></div>:null}
     </section>
