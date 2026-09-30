@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Prisma } from "../../generated/prisma/client";
 import { db } from "@/lib/db";
 import type { BillingWebhookEvent } from "@/lib/billing-provider";
@@ -8,12 +9,13 @@ async function createEventIdempotently(
   event: BillingWebhookEvent,
 ) {
   const payload = event.payload ? JSON.stringify(event.payload) : null;
+  const eventId = randomUUID();
   const inserted = await tx.$queryRaw<Array<{ id: string }>>`
     INSERT INTO "BillingEvent"
       ("id", "organizationId", "provider", "providerEventId", "type",
        "externalReference", "payload", "createdAt")
     VALUES
-      (gen_random_uuid()::text, ${organizationId}, ${event.provider},
+      (${eventId}, ${organizationId}, ${event.provider},
        ${event.providerEventId}, ${event.type}, ${event.externalReference},
        ${payload}::jsonb, NOW())
     ON CONFLICT ("providerEventId") DO NOTHING
