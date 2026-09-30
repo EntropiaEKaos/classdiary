@@ -1,5 +1,6 @@
 import { requireSchoolRole } from "@/lib/rbac";
 import { getOrganizationPlanUsage } from "@/lib/plans";
+import { subscriptionAccessMessage, subscriptionAccessState } from "@/lib/subscription-lifecycle";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,9 @@ export default async function PlanPage() {
   const { org } = await requireSchoolRole(["SCHOOL_ADMIN", "COORDINATOR"]);
   const snapshot = await getOrganizationPlanUsage(org.id);
   const subscription = snapshot.subscription;
+  const lifecycle = subscription
+    ? subscriptionAccessState(subscription)
+    : "BLOCKED";
 
   return (
     <main className="main">
@@ -19,7 +23,7 @@ export default async function PlanPage() {
           <span className="badge">Plano SaaS</span>
           <h1>{snapshot.limits.label}</h1>
           <div className="muted">
-            Status {subscription?.status ?? "SEM ASSINATURA"}
+            Status {subscription?.status ?? "SEM ASSINATURA"} · {subscriptionAccessMessage(lifecycle)}
             {subscription?.trialEndsAt
               ? ` · Trial até ${subscription.trialEndsAt.toLocaleDateString("pt-BR")}`
               : ""}

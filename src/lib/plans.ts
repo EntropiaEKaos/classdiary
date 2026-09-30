@@ -1,6 +1,7 @@
-import type { Prisma } from "../../generated/prisma/client";
+import type { Prisma, SubscriptionStatus } from "../../generated/prisma/client";
 import { db } from "@/lib/db";
 import { retrySerializable } from "@/lib/transaction-retry";
+import { subscriptionAccessState } from "@/lib/subscription-lifecycle";
 
 export type PlanCode = "STARTER" | "PRO" | "ENTERPRISE";
 export type PlanResource = "students" | "classes" | "seats";
@@ -56,18 +57,15 @@ async function currentUsage(
 }
 
 function assertWritableSubscription(subscription: {
-  status: string;
+  status: SubscriptionStatus;
   trialEndsAt: Date | null;
+  currentPeriodEnd: Date | null;
 }) {
-  if (subscription.status === "CANCELED") {
-    throw new Error("Assinatura cancelada. Reative o plano para continuar alterando dados.");
-  }
-  if (
-    subscription.status === "TRIAL" &&
-    subscription.trialEndsAt &&
-    subscription.trialEndsAt.getTime() < Date.now()
-  ) {
-    throw new Error("Período de teste encerrado. Ative um plano para continuar.");
+  const state = subscriptionAccessState(subscription);
+  if (state === "BLOCKED") {
+    throw new Error(
+      "Assinatura fora do período permitido para alterações. Regularize o plano para continuar.",
+    );
   }
 }
 
@@ -109,12 +107,13 @@ export async function withPlanCapacity<T>(
       Array<{
         id: string;
         plan: string;
-        status: string;
+        status: SubscriptionStatus;
         seats: number;
         trialEndsAt: Date | null;
+        currentPeriodEnd: Date | null;
       }>
     >`
-      SELECT "id", "plan", "status", "seats", "trialEndsAt"
+      SELECT "id", "plan", "status", "seats", "trialEndsAt", "currentPeriodEnd"
       FROM "Subscription"
       WHERE "organizationId" = ${organizationId}
       FOR UPDATE
