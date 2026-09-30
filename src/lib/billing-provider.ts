@@ -1,5 +1,6 @@
 export type CheckoutRequest = {
   organizationId: string;
+  externalReference: string;
   plan: "STARTER" | "PRO" | "ENTERPRISE";
   seats: number;
   customerEmail?: string | null;
