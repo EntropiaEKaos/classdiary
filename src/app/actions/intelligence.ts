@@ -26,6 +26,17 @@ export async function createSurveyAction(fd: FormData) {
     endsAt: String(fd.get("endsAt") ?? ""),
   });
 
+  const startsAt = p.startsAt ? new Date(p.startsAt) : null;
+  const endsAt = p.endsAt ? new Date(p.endsAt) : null;
+
+  if (
+    (startsAt && Number.isNaN(startsAt.getTime())) ||
+    (endsAt && Number.isNaN(endsAt.getTime())) ||
+    (startsAt && endsAt && endsAt <= startsAt)
+  ) {
+    throw new Error("Período da pesquisa inválido.");
+  }
+
   const survey = await db.survey.create({
     data: {
       organizationId: org.id,
@@ -33,8 +44,8 @@ export async function createSurveyAction(fd: FormData) {
       title: p.title,
       audience: p.audience,
       type: p.type,
-      startsAt: p.startsAt ? new Date(p.startsAt) : null,
-      endsAt: p.endsAt ? new Date(p.endsAt) : null,
+      startsAt,
+      endsAt,
       questions: {
         create: {
           prompt: p.question,
@@ -89,6 +100,26 @@ export async function submitSurveyResponseAction(fd: FormData) {
     throw new Error("Pesquisa inválida.");
   }
 
+  const orgRoles = user.memberships
+    .filter((membership) => membership.organizationId === org.id)
+    .map((membership) => membership.role);
+
+  const isStudent = orgRoles.includes("STUDENT");
+  const isGuardian = orgRoles.includes("GUARDIAN");
+  const isStaff = orgRoles.some((role) =>
+    ["SCHOOL_ADMIN", "COORDINATOR", "TEACHER", "SECRETARY"].includes(role),
+  );
+
+  const audienceAllowed =
+    survey.audience === "ALL" ||
+    (survey.audience === "STUDENTS" && isStudent) ||
+    (survey.audience === "GUARDIANS" && isGuardian) ||
+    (survey.audience === "STAFF" && isStaff);
+
+  if (!audienceAllowed) {
+    throw new Error("Esta pesquisa não está disponível para o seu perfil.");
+  }
+
   const existing = await db.surveyResponse.findFirst({
     where: {
       surveyId: survey.id,
@@ -141,17 +172,52 @@ export async function createPedagogicalGoalAction(fd: FormData) {
     notes: String(fd.get("notes") ?? "").trim(),
   });
 
+  const startsAt = new Date(p.startsAt);
+  const endsAt = new Date(p.endsAt);
+
+  if (
+    Number.isNaN(startsAt.getTime()) ||
+    Number.isNaN(endsAt.getTime()) ||
+    endsAt <= startsAt
+  ) {
+    throw new Error("Período da meta inválido.");
+  }
+
+  let scopeId: string | null = null;
+
+  if (p.scopeType === "CLASS") {
+    if (!p.scopeId) throw new Error("Turma obrigatória para esta meta.");
+    const group = await db.classGroup.findFirst({
+      where: { id: p.scopeId, organizationId: org.id },
+      select: { id: true },
+    });
+    if (!group) throw new Error("Turma inválida.");
+    scopeId = group.id;
+  } else if (p.scopeType === "TEACHER") {
+    if (!p.scopeId) throw new Error("Professor obrigatório para esta meta.");
+    const teacher = await db.membership.findFirst({
+      where: {
+        organizationId: org.id,
+        userId: p.scopeId,
+        role: "TEACHER",
+      },
+      select: { userId: true },
+    });
+    if (!teacher) throw new Error("Professor inválido.");
+    scopeId = teacher.userId;
+  }
+
   await db.pedagogicalGoal.create({
     data: {
       organizationId: org.id,
       createdById: user.id,
       scopeType: p.scopeType,
-      scopeId: p.scopeId || null,
+      scopeId,
       title: p.title,
       metric: p.metric,
       targetValue: p.targetValue,
-      startsAt: new Date(p.startsAt),
-      endsAt: new Date(p.endsAt),
+      startsAt,
+      endsAt,
       notes: p.notes || null,
     },
   });
