@@ -126,10 +126,26 @@ export async function updatePurchaseOrderStatusAction(fd:FormData){
 }
 
 export async function createAutomationRuleAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("automation","create");
-  const p=z.object({name:z.string().min(2),event:z.string().min(1),action:z.string().min(1),configuration:z.string().optional()}).parse({
-    name:String(fd.get("name")??"").trim(),event:String(fd.get("event")??"").trim(),action:String(fd.get("action")??"").trim(),configuration:String(fd.get("configuration")??"").trim()
+  const p=z.object({
+    name:z.string().min(2),
+    event:z.enum([
+      "TASK_OVERDUE",
+      "LOW_STOCK",
+      "APPROVAL_PENDING",
+      "MAINTENANCE_DUE",
+      "AUTHORIZATION_PENDING"
+    ]),
+    action:z.enum(["CREATE_NOTIFICATION","CREATE_TASK"]),
+    configuration:z.string().optional()
+  }).parse({
+    name:String(fd.get("name")??"").trim(),
+    event:String(fd.get("event")??"").trim(),
+    action:String(fd.get("action")??"").trim(),
+    configuration:String(fd.get("configuration")??"").trim()
   });
+
   let configuration: Record<string, string | number | boolean | null> | undefined;
   if (p.configuration) {
     try {
@@ -142,8 +158,19 @@ export async function createAutomationRuleAction(fd:FormData){
       throw new Error("Configuração JSON inválida");
     }
   }
-  await db.automationRule.create({data:{organizationId:org.id,name:p.name,event:p.event,action:p.action,configuration}});
+
+  await db.automationRule.create({
+    data:{
+      organizationId:org.id,
+      name:p.name,
+      event:p.event,
+      action:p.action,
+      configuration
+    }
+  });
+
   revalidatePath("/dashboard/automacoes");
+  revalidatePath("/dashboard/automacao-institucional");
 }
 
 
