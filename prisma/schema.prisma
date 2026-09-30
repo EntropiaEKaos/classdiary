@@ -44,6 +44,7 @@ model Organization {
   attendanceWarningPercent Int @default(75)
   active        Boolean        @default(true)
   memberships   Membership[]
+  activeOrganizationSessions Session[] @relation("ActiveOrganizationSession")
   schoolYears   SchoolYear[]
   classGroups   ClassGroup[]
   subjects      Subject[]
@@ -65,8 +66,6 @@ model Organization {
   documentRequirements StudentDocumentRequirement[]
   academicMovements AcademicMovement[]
   annualResults AnnualResult[]
-  grades Grade[]
-  recoveryGrades RecoveryGrade[]
   financialSettings FinancialSettings?
   studentContracts StudentContract[]
   invoices Invoice[]
@@ -227,6 +226,8 @@ model SchoolYear {
   periodClosures PeriodClosure[]
   councilDecisions CouncilDecision[]
   annualResults AnnualResult[]
+  grades Grade[]
+  recoveryGrades RecoveryGrade[]
 
   @@unique([organizationId, name])
 }
