@@ -1,5 +1,6 @@
 import type { Prisma } from "../../generated/prisma/client";
 import { db } from "@/lib/db";
+import { retrySerializable } from "@/lib/transaction-retry";
 
 export type PlanCode = "STARTER" | "PRO" | "ENTERPRISE";
 export type PlanResource = "students" | "classes" | "seats";
@@ -95,8 +96,11 @@ export async function withPlanCapacity<T>(
   organizationId: string,
   resource: PlanResource,
   operation: (tx: Prisma.TransactionClient) => Promise<T>,
+  requested = 1,
 ) {
-  return db.$transaction(async (tx) => {
+  if (requested < 1) return db.$transaction(operation);
+
+  return retrySerializable(() => db.$transaction(async (tx) => {
     const locked = await tx.$queryRaw<
       Array<{
         id: string;
@@ -121,17 +125,17 @@ export async function withPlanCapacity<T>(
     const current = await currentUsage(tx, organizationId, resource);
     const limit = resourceLimit(plan, subscription.seats, resource);
 
-    if (limit !== null && current >= limit) {
+    if (limit !== null && current + requested > limit) {
       const labels: Record<PlanResource, string> = {
         students: "alunos ativos",
         classes: "turmas",
         seats: "usuários",
       };
       throw new Error(
-        `Limite do plano ${PLAN_CATALOG[plan].label} atingido para ${labels[resource]} (${current}/${limit}).`,
+        `Limite do plano ${PLAN_CATALOG[plan].label} excedido para ${labels[resource]} (${current} atuais + ${requested} solicitados / ${limit}).`,
       );
     }
 
     return operation(tx);
-  });
+  }, { isolationLevel: "Serializable" }));
 }
