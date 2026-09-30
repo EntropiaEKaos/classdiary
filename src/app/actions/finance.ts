@@ -264,6 +264,27 @@ export async function registerPaymentAction(fd: FormData) {
 
   const result = await retrySerializable(() => db.$transaction(
     async (tx) => {
+      if (p.externalReference) {
+        const existingPayment = await tx.payment.findFirst({
+          where: {
+            organizationId: org.id,
+            invoiceId: p.invoiceId,
+            externalReference: p.externalReference,
+          },
+        });
+
+        if (existingPayment) {
+          if (
+            Number(existingPayment.amount) !== p.amount ||
+            existingPayment.method !== p.method
+          ) {
+            throw new Error("Referência externa já utilizada com dados diferentes.");
+          }
+
+          return { invoiceId: existingPayment.invoiceId };
+        }
+      }
+
       const invoice = await tx.invoice.findFirst({
         where: {
           id: p.invoiceId,
