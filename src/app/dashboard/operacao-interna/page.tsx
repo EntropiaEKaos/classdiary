@@ -65,7 +65,7 @@ export default async function Page() {
         status: "PENDING",
       },
       include: { createdBy: true },
-      orderBy: { createdAt: "asc" },
+      orderBy: { openedAt: "asc" },
       take: 100,
     }),
     db.academicEvent.findMany({
