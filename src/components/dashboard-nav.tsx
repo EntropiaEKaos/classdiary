@@ -40,12 +40,14 @@ const items: NavItem[] = [
   { href: "/dashboard/pre-inscricoes", label: "Pré-inscrições", Icon: UserPlus, module: "crm" },
   { href: "/dashboard/crm", label: "CRM", Icon: UserPlus, module: "crm" },
   { href: "/dashboard/resultados", label: "Resultados anuais", Icon: ChartNoAxesColumnIncreasing, roles: ["SCHOOL_ADMIN", "COORDINATOR"] },
+  { href: "/dashboard/fechamento-anual", label: "Fechamento anual", Icon: ClipboardCheck, roles: ["SCHOOL_ADMIN", "COORDINATOR"] },
   { href: "/dashboard/professores", label: "Professores", Icon: Users, roles: ["SCHOOL_ADMIN", "COORDINATOR"] },
   { href: "/dashboard/convites", label: "Convites", Icon: UserPlus, roles: ["SCHOOL_ADMIN", "COORDINATOR"] },
 
   { href: "/dashboard/disciplinas", label: "Disciplinas", Icon: FileText, module: "academic" },
   { href: "/dashboard/horarios", label: "Horários", Icon: CalendarDays, module: "academic" },
   { href: "/dashboard/diarios", label: "Diário de classe", Icon: BookOpenCheck, module: "academic" },
+  { href: "/dashboard/operacao-academica", label: "Operação acadêmica", Icon: ClipboardCheck, module: "academic" },
   { href: "/dashboard/frequencia", label: "Frequência", Icon: ClipboardCheck, module: "academic" },
   { href: "/dashboard/justificativas", label: "Justificativas", Icon: ClipboardCheck, module: "academic" },
   { href: "/dashboard/atividades", label: "Atividades", Icon: NotebookTabs, module: "academic" },
@@ -90,6 +92,7 @@ const items: NavItem[] = [
   { href: "/dashboard/planos-aula", label: "Planos de aula", Icon: NotebookTabs, module: "pedagogy" },
   { href: "/dashboard/competencias", label: "Competências", Icon: ChartNoAxesColumnIncreasing, module: "pedagogy" },
   { href: "/dashboard/intervencoes", label: "Intervenções", Icon: TriangleAlert, module: "pedagogy" },
+  { href: "/dashboard/risco-academico", label: "Risco acadêmico", Icon: TriangleAlert, module: "pedagogy" },
   { href: "/dashboard/evolucao", label: "Evolução", Icon: GraduationCap, module: "pedagogy" },
 
   { href: "/dashboard/banco-questoes", label: "Banco de questões", Icon: NotebookTabs, module: "assessments" },
