@@ -41,7 +41,7 @@ test("school admin can login and open critical protected areas", async ({ page }
   ]) {
     await page.goto(route);
     await expect(page).not.toHaveURL(/\/login/);
-    await expect(page.locator("main")).toBeVisible();
+    await expect(page.locator("main.main").first()).toBeVisible();
   }
 });
 
