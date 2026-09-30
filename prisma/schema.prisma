@@ -2298,6 +2298,7 @@ model BillingCheckout {
   status            String       @default("PENDING")
   provider          String?
   externalReference String       @unique
+  idempotencyKey    String       @unique
   checkoutUrl       String?
   failureReason     String?
   organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
