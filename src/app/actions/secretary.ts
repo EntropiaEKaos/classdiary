@@ -448,19 +448,27 @@ export async function importStudentsCsvAction(fd: FormData) {
     .filter((row) => row.name && row.registration);
 
   const registrations = [...new Set(rows.map((row) => row.registration))];
-  const existing = await db.student.findMany({
-    where: { organizationId: org.id, registration: { in: registrations } },
-    select: { registration: true, active: true },
-  });
-  const existingMap = new Map(existing.map((student) => [student.registration, student.active]));
-  const requested = registrations.filter(
-    (registration) => existingMap.get(registration) !== true,
-  ).length;
 
   await withPlanCapacity(
     org.id,
     "students",
     async (tx) => {
+      const existingBefore = await tx.student.findMany({
+        where: {
+          organizationId: org.id,
+          registration: { in: registrations },
+        },
+        select: { registration: true, active: true },
+      });
+      const activeBefore = new Set(
+        existingBefore
+          .filter((student) => student.active)
+          .map((student) => student.registration),
+      );
+      const newStudents = registrations.filter(
+        (registration) => !activeBefore.has(registration),
+      ).length;
+
       let count = 0;
       for (const row of rows) {
         await tx.student.upsert({
@@ -495,12 +503,24 @@ export async function importStudentsCsvAction(fd: FormData) {
           organizationId: org.id,
           action: "IMPORT",
           entity: "Student",
-          metadata: { imported: count, newStudents: requested },
+          metadata: { imported: count, newStudents },
         },
       });
       return count;
     },
-    requested,
+    async (tx) => {
+      const existing = await tx.student.findMany({
+        where: {
+          organizationId: org.id,
+          registration: { in: registrations },
+        },
+        select: { registration: true, active: true },
+      });
+      const active = new Set(
+        existing.filter((student) => student.active).map((student) => student.registration),
+      );
+      return registrations.filter((registration) => !active.has(registration)).length;
+    },
   );
 
   revalidatePath("/dashboard/importar-alunos");

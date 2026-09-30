@@ -71,18 +71,30 @@ export async function createTeacherAction(fd:FormData){
   const p=z.object({name:z.string().min(2),email:z.string().email()}).parse({name:String(fd.get("name")??"").trim(),email:String(fd.get("email")??"").trim().toLowerCase()});
   const existing=await db.user.findUnique({where:{email:p.email}});
   if(existing&&!existing.active) throw new Error("Esta conta está desativada e não pode ser reativada pela escola.");
-  const existingSeat=existing?await db.membership.findFirst({where:{organizationId:org.id,userId:existing.id}}):null;
+
   const persist=async(tx:Prisma.TransactionClient)=>{
-    const teacher=existing
-      ? await tx.user.update({where:{id:existing.id},data:{...(!existing.name?{name:p.name}:{})}})
+    const current=await tx.user.findUnique({where:{email:p.email}});
+    if(current&&!current.active) throw new Error("Esta conta está desativada e não pode ser reativada pela escola.");
+
+    const teacher=current
+      ? await tx.user.update({where:{id:current.id},data:{...(!current.name?{name:p.name}:{})}})
       : await tx.user.create({data:{name:p.name,email:p.email,active:true}});
+
     await tx.membership.upsert({where:{organizationId_userId_role:{organizationId:org.id,userId:teacher.id,role:"TEACHER"}},update:{},create:{organizationId:org.id,userId:teacher.id,role:"TEACHER"}});
     await tx.auditLog.create({data:{userId:actor.id,organizationId:org.id,action:"UPSERT",entity:"Teacher",entityId:teacher.id}});
   };
-  if(existingSeat){
-    await db.$transaction(persist);
-  }else{
-    await withPlanCapacity(org.id,"seats",persist);
-  }
+
+  await withPlanCapacity(
+    org.id,
+    "seats",
+    persist,
+    async(tx)=>{
+      const user=await tx.user.findUnique({where:{email:p.email},select:{id:true,active:true}});
+      if(user&&!user.active) throw new Error("Esta conta está desativada e não pode ser reativada pela escola.");
+      if(!user) return 1;
+      const seat=await tx.membership.findFirst({where:{organizationId:org.id,userId:user.id},select:{id:true}});
+      return seat?0:1;
+    }
+  );
   revalidatePath("/dashboard/professores");revalidatePath("/dashboard");
 }

@@ -133,28 +133,51 @@ export async function acceptInvitationAction(fd: FormData) {
     redirect("/aceitar-convite?error=disabled");
   }
 
-  const existingSeat = existing
-    ? await db.membership.findFirst({
-        where: { organizationId: invite.organizationId, userId: existing.id },
-      })
-    : null;
-
-  const passwordHash =
-    existing?.passwordHash ? existing.passwordHash : await hash(password, 12);
+  const passwordHash = await hash(password, 12);
 
   const accept = async (tx: Prisma.TransactionClient) => {
-    const user = existing
+    const freshInvite = await tx.invitation.findUnique({
+      where: { id: invite.id },
+      include: { organization: true, student: true },
+    });
+
+    if (
+      !freshInvite ||
+      freshInvite.acceptedAt ||
+      freshInvite.expiresAt < new Date() ||
+      !freshInvite.organization.active
+    ) {
+      return;
+    }
+
+    if (
+      ["GUARDIAN", "STUDENT"].includes(freshInvite.role) &&
+      (!freshInvite.student ||
+        freshInvite.student.organizationId !== freshInvite.organizationId ||
+        !freshInvite.student.active)
+    ) {
+      throw new Error("Convite inválido.");
+    }
+
+    const current = await tx.user.findUnique({
+      where: { email: freshInvite.email },
+    });
+    if (current && !current.active) {
+      throw new Error("Esta conta está desativada.");
+    }
+
+    const user = current
       ? await tx.user.update({
-          where: { id: existing.id },
+          where: { id: current.id },
           data: {
-            ...(!existing.name ? { name } : {}),
-            ...(!existing.passwordHash ? { passwordHash } : {}),
+            ...(!current.name ? { name } : {}),
+            ...(!current.passwordHash ? { passwordHash } : {}),
           },
         })
       : await tx.user.create({
           data: {
             name,
-            email: invite.email,
+            email: freshInvite.email,
             passwordHash,
             active: true,
           },
@@ -163,72 +186,102 @@ export async function acceptInvitationAction(fd: FormData) {
     await tx.membership.upsert({
       where: {
         organizationId_userId_role: {
-          organizationId: invite.organizationId,
+          organizationId: freshInvite.organizationId,
           userId: user.id,
-          role: invite.role,
+          role: freshInvite.role,
         },
       },
       update: {},
       create: {
-        organizationId: invite.organizationId,
+        organizationId: freshInvite.organizationId,
         userId: user.id,
-        role: invite.role,
+        role: freshInvite.role,
       },
     });
 
-    if (invite.role === "GUARDIAN" && invite.studentId) {
+    if (freshInvite.role === "GUARDIAN" && freshInvite.studentId) {
       await tx.studentGuardian.upsert({
         where: {
           studentId_userId: {
-            studentId: invite.studentId,
+            studentId: freshInvite.studentId,
             userId: user.id,
           },
         },
         update: {},
         create: {
-          studentId: invite.studentId,
+          studentId: freshInvite.studentId,
           userId: user.id,
         },
       });
     }
 
-    if (invite.role === "STUDENT" && invite.studentId) {
+    if (freshInvite.role === "STUDENT" && freshInvite.studentId) {
       await tx.studentUser.upsert({
         where: {
           studentId_userId: {
-            studentId: invite.studentId,
+            studentId: freshInvite.studentId,
             userId: user.id,
           },
         },
         update: {},
         create: {
-          studentId: invite.studentId,
+          studentId: freshInvite.studentId,
           userId: user.id,
         },
       });
     }
 
     await tx.invitation.update({
-      where: { id: invite.id },
+      where: { id: freshInvite.id },
       data: { acceptedAt: new Date() },
     });
 
     await tx.auditLog.create({
       data: {
         userId: user.id,
-        organizationId: invite.organizationId,
+        organizationId: freshInvite.organizationId,
         action: "ACCEPT",
         entity: "Invitation",
-        entityId: invite.id,
+        entityId: freshInvite.id,
       },
     });
   };
 
-  if (existingSeat) {
-    await db.$transaction(accept);
-  } else {
-    await withPlanCapacity(invite.organizationId, "seats", accept);
-  }
+  await withPlanCapacity(
+    invite.organizationId,
+    "seats",
+    accept,
+    async (tx) => {
+      const currentInvite = await tx.invitation.findUnique({
+        where: { id: invite.id },
+        select: { acceptedAt: true, expiresAt: true, email: true },
+      });
+      if (!currentInvite || currentInvite.acceptedAt || currentInvite.expiresAt < new Date()) {
+        return 0;
+      }
+
+      const current = await tx.user.findUnique({
+        where: { email: currentInvite.email },
+        select: { id: true, active: true },
+      });
+
+      if (current && !current.active) {
+        throw new Error("Esta conta está desativada.");
+      }
+
+      if (!current) return 1;
+
+      const seat = await tx.membership.findFirst({
+        where: {
+          organizationId: invite.organizationId,
+          userId: current.id,
+        },
+        select: { id: true },
+      });
+
+      return seat ? 0 : 1;
+    },
+  );
 
   redirect("/login");
 }
