@@ -7,11 +7,40 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { org } = await requireModulePermission("assessments", "view");
+  const { user, org } = await requireModulePermission("assessments", "view");
   const { id } = await params;
 
+  const roles = user.memberships
+    .filter((membership) => membership.organizationId === org.id)
+    .map((membership) => membership.role);
+
+  const teacherOnly =
+    roles.includes("TEACHER") &&
+    !roles.some((role) =>
+      ["SCHOOL_ADMIN", "COORDINATOR"].includes(role),
+    );
+
   const exam = await db.exam.findFirst({
-    where: { id, organizationId: org.id },
+    where: {
+      id,
+      organizationId: org.id,
+      ...(teacherOnly
+        ? {
+            OR: [
+              { authorId: user.id },
+              {
+                classGroup: {
+                  classSubjects: {
+                    some: {
+                      teacherId: user.id,
+                    },
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
+    },
     include: {
       classGroup: true,
       subject: true,
@@ -131,6 +160,7 @@ export async function GET(
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="prova-${exam.id}.pdf"`,
+      "Cache-Control": "private, no-store",
     },
   });
 }
