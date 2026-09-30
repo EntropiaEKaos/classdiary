@@ -431,6 +431,79 @@ test("concurrent duplicate payment is idempotent by external reference", async (
 
 
 
+
+
+test("trial lifecycle allows grace period and blocks mutations after grace", async ({ page }) => {
+  const org = await db.organization.findUnique({
+    where: { slug: "escola-demo" },
+    include: { subscription: true },
+  });
+  expect(org?.subscription).not.toBeNull();
+
+  const original = org!.subscription!;
+  const graceName = `Aluno Grace ${Date.now()}`;
+  const graceRegistration = `GRACE-${Date.now()}`;
+  const blockedName = `Aluno Bloqueado ${Date.now()}`;
+  const blockedRegistration = `BLOCK-${Date.now()}`;
+
+  try {
+    await db.subscription.update({
+      where: { organizationId: org!.id },
+      data: {
+        status: "TRIAL",
+        trialEndsAt: new Date(Date.now() - 86_400_000),
+      },
+    });
+
+    await loginAsAdmin(page);
+    await page.goto("/dashboard/plano");
+    await expect(page.getByText("período de tolerância ativo", { exact: false })).toBeVisible();
+
+    await page.goto("/dashboard/alunos");
+    await page.locator('input[name="name"]').fill(graceName);
+    await page.locator('input[name="registration"]').fill(graceRegistration);
+    await page.getByRole("button", { name: "Cadastrar" }).click();
+    await expect(page.getByText(graceName, { exact: true })).toBeVisible();
+
+    await db.subscription.update({
+      where: { organizationId: org!.id },
+      data: {
+        status: "TRIAL",
+        trialEndsAt: new Date(Date.now() - 4 * 86_400_000),
+      },
+    });
+
+    await page.goto("/dashboard/alunos");
+    await page.locator('input[name="name"]').fill(blockedName);
+    await page.locator('input[name="registration"]').fill(blockedRegistration);
+    await page.getByRole("button", { name: "Cadastrar" }).click().catch(() => undefined);
+    await page.waitForTimeout(300);
+
+    const blocked = await db.student.findFirst({
+      where: { organizationId: org!.id, registration: blockedRegistration },
+    });
+    expect(blocked).toBeNull();
+  } finally {
+    await db.student.deleteMany({
+      where: {
+        organizationId: org!.id,
+        registration: { in: [graceRegistration, blockedRegistration] },
+      },
+    });
+
+    await db.subscription.update({
+      where: { organizationId: org!.id },
+      data: {
+        plan: original.plan,
+        status: original.status,
+        seats: original.seats,
+        trialEndsAt: original.trialEndsAt,
+        currentPeriodEnd: original.currentPeriodEnd,
+      },
+    });
+  }
+});
+
 test("starter seat limit blocks a new teacher without orphaning a user", async ({ page }) => {
   const org = await db.organization.findUnique({
     where: { slug: "escola-demo" },
