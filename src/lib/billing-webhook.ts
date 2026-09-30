@@ -7,28 +7,26 @@ async function createEventIdempotently(
   organizationId: string,
   event: BillingWebhookEvent,
 ) {
-  try {
-    return await tx.billingEvent.create({
-      data: {
-        organizationId,
-        provider: event.provider,
-        providerEventId: event.providerEventId,
-        type: event.type,
-        externalReference: event.externalReference,
-        payload: event.payload ?? undefined,
-      },
-    });
-  } catch (error) {
-    const code =
-      typeof error === "object" && error !== null && "code" in error
-        ? String((error as { code?: unknown }).code ?? "")
-        : "";
-    if (code !== "P2002") throw error;
+  const payload = event.payload ? JSON.stringify(event.payload) : null;
+  const inserted = await tx.$queryRaw<Array<{ id: string }>>`
+    INSERT INTO "BillingEvent"
+      ("id", "organizationId", "provider", "providerEventId", "type",
+       "externalReference", "payload", "createdAt")
+    VALUES
+      (gen_random_uuid()::text, ${organizationId}, ${event.provider},
+       ${event.providerEventId}, ${event.type}, ${event.externalReference},
+       ${payload}::jsonb, NOW())
+    ON CONFLICT ("providerEventId") DO NOTHING
+    RETURNING "id"
+  `;
 
-    return tx.billingEvent.findUnique({
-      where: { providerEventId: event.providerEventId },
-    });
+  if (inserted[0]) {
+    return tx.billingEvent.findUnique({ where: { id: inserted[0].id } });
   }
+
+  return tx.billingEvent.findUnique({
+    where: { providerEventId: event.providerEventId },
+  });
 }
 
 export async function processBillingWebhookEvent(event: BillingWebhookEvent) {
