@@ -109,6 +109,7 @@ export async function createSaasCheckout(input: CreateSaasCheckoutInput) {
       data: {
         status: "READY",
         provider: session.provider,
+        providerSubscriptionId: session.providerSubscriptionId ?? null,
         checkoutUrl: session.checkoutUrl,
       },
     });
