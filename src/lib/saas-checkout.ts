@@ -32,19 +32,32 @@ export async function createSaasCheckout(input: CreateSaasCheckoutInput) {
   }
 
   const externalReference = `SAAS-${randomUUID()}`;
-  const checkout = await db.billingCheckout.upsert({
-    where: { idempotencyKey },
-    update: {},
-    create: {
-      organizationId: input.organizationId,
-      requestedByUserId: input.requestedByUserId,
-      plan: input.plan,
-      seats: input.seats,
-      status: "PENDING",
-      externalReference,
-      idempotencyKey,
-    },
-  });
+  let checkout;
+  try {
+    checkout = await db.billingCheckout.create({
+      data: {
+        organizationId: input.organizationId,
+        requestedByUserId: input.requestedByUserId,
+        plan: input.plan,
+        seats: input.seats,
+        status: "PENDING",
+        externalReference,
+        idempotencyKey,
+      },
+    });
+  } catch (error) {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? String((error as { code?: unknown }).code ?? "")
+        : "";
+
+    if (code !== "P2002") throw error;
+
+    checkout = await db.billingCheckout.findUnique({
+      where: { idempotencyKey },
+    });
+    if (!checkout) throw error;
+  }
 
   if (
     checkout.organizationId !== input.organizationId ||
@@ -110,7 +123,7 @@ export async function createSaasCheckout(input: CreateSaasCheckoutInput) {
           plan: input.plan,
           seats: input.seats,
           provider: session.provider,
-          externalReference,
+          externalReference: ready.externalReference,
         },
       },
     });
