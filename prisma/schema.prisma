@@ -124,6 +124,10 @@ model Organization {
   dataSubjectRequests DataSubjectRequest[]
   retentionPolicies RetentionPolicy[]
   sensitiveAccessLogs SensitiveAccessLog[]
+  incidents Incident[]
+  backupVerifications BackupVerification[]
+  restoreDrills RestoreDrill[]
+  releaseChecklistItems ReleaseChecklistItem[]
   questionBank QuestionBankItem[]
   examBlueprints ExamBlueprint[]
   exams Exam[]
@@ -195,6 +199,11 @@ model User {
   dataSubjectRequests DataSubjectRequest[] @relation("DataSubjectRequestRequester")
   dataSubjectRequestsDecided DataSubjectRequest[] @relation("DataSubjectRequestDecider")
   sensitiveAccessLogs SensitiveAccessLog[]
+  incidentsCreated Incident[] @relation("IncidentCreator")
+  incidentsResolved Incident[] @relation("IncidentResolver")
+  backupVerificationsCreated BackupVerification[] @relation("BackupVerificationCreator")
+  restoreDrillsCreated RestoreDrill[] @relation("RestoreDrillCreator")
+  releaseChecklistItemsUpdated ReleaseChecklistItem[] @relation("ReleaseChecklistUpdater")
   periodClosuresClosed PeriodClosure[] @relation("PeriodClosureCloser")
   questionsCreated QuestionBankItem[] @relation("QuestionAuthor")
   examsCreated Exam[] @relation("ExamAuthor")
@@ -2359,6 +2368,85 @@ model SensitiveAccessLog {
   @@index([userId, createdAt])
   @@index([studentId, createdAt])
   @@index([resourceType, resourceId])
+}
+
+model Incident {
+  id             String       @id @default(cuid())
+  organizationId String
+  createdById    String
+  resolvedById   String?
+  title          String
+  description    String
+  severity       String       @default("MEDIUM")
+  status         String       @default("OPEN")
+  service        String?
+  startedAt      DateTime     @default(now())
+  resolvedAt     DateTime?
+  resolution     String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User         @relation("IncidentCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  resolvedBy     User?        @relation("IncidentResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, status, severity])
+  @@index([organizationId, startedAt])
+}
+
+model BackupVerification {
+  id             String       @id @default(cuid())
+  organizationId String
+  createdById    String
+  backupType     String
+  provider       String?
+  reference      String?
+  status         String
+  checkedAt      DateTime     @default(now())
+  notes          String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User         @relation("BackupVerificationCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, checkedAt])
+}
+
+model RestoreDrill {
+  id             String       @id @default(cuid())
+  organizationId String
+  createdById    String
+  environment    String
+  status         String
+  startedAt      DateTime
+  finishedAt     DateTime?
+  rtoMinutes     Int?
+  rpoMinutes     Int?
+  dataVerified   Boolean      @default(false)
+  notes          String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User         @relation("RestoreDrillCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, startedAt])
+}
+
+model ReleaseChecklistItem {
+  id             String       @id @default(cuid())
+  organizationId String
+  updatedById    String?
+  code           String
+  title          String
+  category       String
+  required       Boolean      @default(true)
+  status         String       @default("PENDING")
+  evidence       String?
+  notes          String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  updatedBy      User?        @relation("ReleaseChecklistUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status, category])
 }
 
 model AuditLog {
