@@ -1,5 +1,6 @@
 export type CheckoutRequest = {
   organizationId: string;
+  externalReference: string;
   plan: "STARTER" | "PRO" | "ENTERPRISE";
   seats: number;
   customerEmail?: string | null;
@@ -12,8 +13,20 @@ export type CheckoutSession = {
   checkoutUrl: string;
 };
 
+export type BillingWebhookEvent = {
+  provider: string;
+  providerEventId: string;
+  type: "CHECKOUT_APPROVED" | "PAYMENT_FAILED" | "SUBSCRIPTION_CANCELED";
+  externalReference: string;
+  payload?: Record<string, unknown>;
+};
+
 export interface BillingProvider {
   createCheckout(request: CheckoutRequest): Promise<CheckoutSession>;
+  verifyWebhook?(
+    body: string,
+    headers: Headers,
+  ): Promise<BillingWebhookEvent>;
 }
 
 class UnconfiguredBillingProvider implements BillingProvider {
