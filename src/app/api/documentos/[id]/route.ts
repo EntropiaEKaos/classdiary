@@ -123,6 +123,7 @@ export async function GET(
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="documento-${document.id}.pdf"`,
+    "Cache-Control": "private, no-store",
     },
   });
 }
