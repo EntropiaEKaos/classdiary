@@ -1,14 +1,31 @@
 import { acceptStudentContractAction } from "@/app/actions/enrollment-finance";
+import { activeOrganization, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const user = await requireUser();
+  const org = await activeOrganization();
+  if (!org) notFound();
+
   const { id } = await params;
 
-  const contract = await db.studentContract.findUnique({
-    where: { id },
+  const contract = await db.studentContract.findFirst({
+    where: {
+      id,
+      organizationId: org.id,
+      student: {
+        guardians: {
+          some: { userId: user.id },
+        },
+      },
+    },
     include: {
       student: true,
       organization: true,
@@ -30,14 +47,21 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         </p>
 
         <div className="notice">
-          <strong>Mensalidade: R$ {Number(contract.monthlyAmount).toFixed(2)}</strong>
+          <strong>
+            Mensalidade: R$ {Number(contract.monthlyAmount).toFixed(2)}
+          </strong>
           <div className="muted">
             Início {contract.startsAt.toLocaleDateString("pt-BR")}
-            {contract.endsAt ? " · término " + contract.endsAt.toLocaleDateString("pt-BR") : ""}
+            {contract.endsAt
+              ? " · término " +
+                contract.endsAt.toLocaleDateString("pt-BR")
+              : ""}
           </div>
+
           {contract.scholarshipLabel ? (
             <div>Bolsa/convênio: {contract.scholarshipLabel}</div>
           ) : null}
+
           {contract.notes ? <p>{contract.notes}</p> : null}
         </div>
 
@@ -49,17 +73,22 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         ) : (
           <form action={acceptStudentContractAction} className="form-stack">
             <input type="hidden" name="contractId" value={contract.id} />
+
             <label>
               Nome do responsável
-              <input name="acceptedByName" required />
+              <input name="acceptedByName" defaultValue={user.name} required />
             </label>
+
             <label>
               CPF/RG
               <input name="acceptedByDocument" />
             </label>
+
             <label>
-              <input type="checkbox" required /> Declaro que li e aceito as condições deste contrato.
+              <input type="checkbox" required /> Declaro que li e aceito as
+              condições deste contrato.
             </label>
+
             <button className="btn btn-primary">Aceitar contrato</button>
           </form>
         )}
