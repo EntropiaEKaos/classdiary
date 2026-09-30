@@ -1,7 +1,7 @@
 "use server";
 
 import { createHash } from "node:crypto";
-import { compare } from "bcryptjs";
+import { compare, hash as hashPassword } from "bcryptjs";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -120,4 +120,70 @@ export async function logoutAction() {
   await assertTrustedMutationOrigin();
   await destroySession();
   redirect("/login");
+}
+
+
+export async function signupOwnerAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
+
+  const parsed = z.object({
+    name: z.string().min(2).max(120),
+    email: z.string().email(),
+    password: z.string().min(10).max(200),
+  }).safeParse({
+    name: String(fd.get("name") ?? "").trim(),
+    email: String(fd.get("email") ?? "").trim().toLowerCase(),
+    password: String(fd.get("password") ?? ""),
+  });
+
+  if (!parsed.success) redirect("/cadastro?error=invalid");
+
+  const headerStore = await headers();
+  const forwarded = headerStore.get("x-forwarded-for") ?? "";
+  const ip = forwarded.split(",")[0]?.trim() || "unknown";
+  const throttleKey = "signup:" + digest(ip);
+  const now = new Date();
+  const row = await db.loginThrottle.findUnique({ where: { key: throttleKey } });
+
+  if (row?.blockedUntil && row.blockedUntil > now) {
+    redirect("/cadastro?error=rate_limited");
+  }
+
+  const windowExpired =
+    !row || now.getTime() - row.windowStartedAt.getTime() > 60 * 60_000;
+  const attempts = windowExpired ? 1 : row.attempts + 1;
+  const blockedUntil = attempts > 5 ? new Date(now.getTime() + 60 * 60_000) : null;
+
+  await db.loginThrottle.upsert({
+    where: { key: throttleKey },
+    update: {
+      attempts,
+      windowStartedAt: windowExpired ? now : row!.windowStartedAt,
+      blockedUntil,
+      lastAttemptAt: now,
+    },
+    create: {
+      key: throttleKey,
+      attempts: 1,
+      windowStartedAt: now,
+      lastAttemptAt: now,
+    },
+  });
+
+  if (blockedUntil) redirect("/cadastro?error=rate_limited");
+
+  const existing = await db.user.findUnique({ where: { email: parsed.data.email } });
+  if (existing) redirect("/cadastro?error=unavailable");
+
+  const user = await db.user.create({
+    data: {
+      name: parsed.data.name,
+      email: parsed.data.email,
+      passwordHash: await hashPassword(parsed.data.password, 12),
+      active: true,
+    },
+  });
+
+  await createSession(user.id);
+  redirect("/onboarding");
 }

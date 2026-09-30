@@ -52,6 +52,79 @@ test("school admin can login and open critical protected areas", async ({ page }
   }
 });
 
+
+
+test("self-service owner signup provisions a Pro trial tenant", async ({ page }) => {
+  const suffix = Date.now().toString();
+  const email = `owner-${suffix}@example.local`;
+  const slug = `escola-self-${suffix}`;
+  const schoolName = `Escola Self Service ${suffix}`;
+  let userId: string | null = null;
+  let organizationId: string | null = null;
+
+  try {
+    await page.goto("/cadastro");
+    await page.getByLabel("Seu nome").fill("Owner E2E");
+    await page.getByLabel("E-mail").fill(email);
+    await page.getByLabel("Senha").fill("OwnerE2E123!");
+    await page.getByRole("button", { name: "Começar período de teste" }).click();
+
+    await expect(page).toHaveURL(/\/onboarding$/);
+
+    await page.getByLabel("Nome da escola").fill(schoolName);
+    await page.getByLabel("Identificador").fill(slug);
+    await page.getByLabel("E-mail institucional").fill(email);
+    await page.getByLabel("Telefone").fill("(13) 99999-1111");
+    await page.getByLabel("Plano inicial").selectOption("PRO");
+    await page.getByRole("button", { name: "Criar escola e iniciar trial" }).click();
+
+    await expect(page).toHaveURL(/\/dashboard$/);
+
+    const organization = await db.organization.findUnique({
+      where: { slug },
+      include: {
+        subscription: true,
+        schoolYears: true,
+        memberships: {
+          include: { user: true },
+        },
+        auditLogs: true,
+      },
+    });
+
+    expect(organization).not.toBeNull();
+    organizationId = organization!.id;
+
+    const ownerMembership = organization!.memberships.find(
+      (membership) =>
+        membership.role === "SCHOOL_ADMIN" &&
+        membership.user.email === email,
+    );
+
+    expect(ownerMembership).toBeTruthy();
+    userId = ownerMembership!.userId;
+    expect(organization!.subscription?.plan).toBe("PRO");
+    expect(organization!.subscription?.status).toBe("TRIAL");
+    expect(organization!.subscription?.seats).toBe(150);
+    expect(organization!.subscription?.trialEndsAt).not.toBeNull();
+    expect(organization!.schoolYears.some((year) => year.active)).toBe(true);
+    expect(
+      organization!.auditLogs.some(
+        (log) => log.entity === "Organization" && log.action === "CREATE",
+      ),
+    ).toBe(true);
+  } finally {
+    if (organizationId) {
+      await db.organization.delete({ where: { id: organizationId } }).catch(() => undefined);
+    }
+    if (userId) {
+      await db.user.delete({ where: { id: userId } }).catch(() => undefined);
+    } else {
+      await db.user.delete({ where: { email } }).catch(() => undefined);
+    }
+  }
+});
+
 test("invalid login is rejected without account disclosure", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("E-mail").fill("naoexiste@classdiary.local");
