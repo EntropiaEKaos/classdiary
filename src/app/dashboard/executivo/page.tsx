@@ -7,7 +7,7 @@ export default async function Page(){
   const {org}=await requireSchoolRole(["SCHOOL_ADMIN","COORDINATOR"]);
   const now=new Date();const monthStart=new Date(now.getFullYear(),now.getMonth(),1);const monthEnd=new Date(now.getFullYear(),now.getMonth()+1,1);
 
-  const [students,teachers,employees,alerts,received,expenses,overdue,leads,assets,lowStock,loans,transport,canteen,medicalToday,pendingAuthorizations,maintenanceOpen,maintenanceDue,purchaseOpen,surveyScores,activeGoals,achievedGoals,lessonPlans,competencyAssessments,activeInterventions,publishedExams,pendingCorrections,questionCount,rubricAssessmentCount,autoPostedGrades,recoveryEligible,pendingExamReviews,activeAllowances,lowIntegrity]=await Promise.all([
+  const [students,teachers,employees,alerts,received,expenses,overdue,leads,assets,lowStock,loans,transport,canteen,medicalToday,pendingAuthorizations,maintenanceOpen,maintenanceDue,purchaseOpen,surveyScores,activeGoals,achievedGoals,lessonPlans,competencyAssessments,activeInterventions,publishedExams,pendingCorrections,questionCount,rubricAssessmentCount,autoPostedGrades,recoveryEligible,pendingExamReviews,activeAllowances,lowIntegrity,activeYear,annualResults]=await Promise.all([
     db.student.count({where:{organizationId:org.id,active:true}}),
     db.membership.count({where:{organizationId:org.id,role:"TEACHER"}}),
     db.employee.count({where:{organizationId:org.id,active:true}}),
@@ -40,8 +40,12 @@ export default async function Page(){
     db.examRecoveryCase.count({where:{organizationId:org.id,status:"ELIGIBLE"}}),
     db.examReviewRequest.count({where:{organizationId:org.id,status:"PENDING"}}),
     db.examAttemptAllowance.count({where:{organizationId:org.id,active:true}}),
-    db.examAttempt.count({where:{organizationId:org.id,integrityScore:{lt:80}}})
+    db.examAttempt.count({where:{organizationId:org.id,integrityScore:{lt:80}}}),
+    db.schoolYear.findFirst({where:{organizationId:org.id,active:true}}),
+    db.annualResult.count({where:{organizationId:org.id}})
   ]);
+
+  const pendingAnnualResults=activeYear?Math.max(0,students-annualResults):0;
 
   const academicAlerts=alerts.filter(s=>{
     const total=s.attendance.length;const present=s.attendance.filter(a=>a.status==="PRESENT"||a.status==="LATE"||a.status==="EXCUSED").length;
@@ -95,6 +99,7 @@ export default async function Page(){
       <div className="table-row"><strong>Revisões de prova pendentes</strong><span>{pendingExamReviews}</span></div>
       <div className="table-row"><strong>Autorizações de tentativa ativas</strong><span>{activeAllowances}</span></div>
       <div className="table-row"><strong>Tentativas com integridade abaixo de 80%</strong><span>{lowIntegrity}</span></div>
+      <div className="table-row"><strong>Alunos sem resultado anual calculado</strong><span>{pendingAnnualResults}</span></div>
     </section>
   </main>;
 }
