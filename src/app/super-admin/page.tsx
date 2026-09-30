@@ -15,7 +15,7 @@ export default async function SuperAdminPage(){
       include:{
         subscription:true,
         memberships:{where:{user:{active:true}},select:{userId:true}},
-        _count:{select:{memberships:true,students:true,classGroups:true}}
+        _count:{select:{memberships:true,students:{where:{active:true}},classGroups:true}}
       },
       orderBy:{createdAt:"desc"}
     }),
