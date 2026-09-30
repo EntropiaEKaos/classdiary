@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSchoolRole } from "@/lib/rbac";
 import { assertTrustedMutationOrigin } from "@/lib/security";
+import { DEFAULT_RELEASE_ITEMS } from "@/lib/release-readiness";
 
 export async function createIncidentAction(fd: FormData) {
   await assertTrustedMutationOrigin();
@@ -274,6 +275,51 @@ export async function upsertReleaseChecklistItemAction(fd: FormData) {
         code: item.code,
         status: item.status,
       },
+    },
+  });
+
+  revalidatePath("/dashboard/readiness");
+}
+
+
+export async function initializeReleaseChecklistAction() {
+  await assertTrustedMutationOrigin();
+  const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN"]);
+
+  await db.$transaction(
+    DEFAULT_RELEASE_ITEMS.map((item) =>
+      db.releaseChecklistItem.upsert({
+        where: {
+          organizationId_code: {
+            organizationId: org.id,
+            code: item.code,
+          },
+        },
+        update: {
+          title: item.title,
+          category: item.category,
+          required: true,
+        },
+        create: {
+          organizationId: org.id,
+          updatedById: user.id,
+          code: item.code,
+          title: item.title,
+          category: item.category,
+          required: true,
+          status: "PENDING",
+        },
+      }),
+    ),
+  );
+
+  await db.auditLog.create({
+    data: {
+      userId: user.id,
+      organizationId: org.id,
+      action: "INITIALIZE",
+      entity: "ReleaseChecklist",
+      metadata: { count: DEFAULT_RELEASE_ITEMS.length },
     },
   });
 

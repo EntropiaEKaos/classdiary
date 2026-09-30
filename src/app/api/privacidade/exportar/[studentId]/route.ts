@@ -115,6 +115,12 @@ export async function GET(
     },
   );
 
+  const safeRegistration = student.registration
+    .normalize("NFKD")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "aluno";
+
   const payload = {
     exportedAt: new Date().toISOString(),
     organization: {
@@ -128,7 +134,7 @@ export async function GET(
     headers: {
       "Cache-Control": "private, no-store",
       "Content-Disposition":
-        `attachment; filename="classdiary-dados-${student.registration}.json"`,
+        `attachment; filename="classdiary-dados-${safeRegistration}.json"`,
     },
   });
 }
