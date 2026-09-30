@@ -229,6 +229,18 @@ test("concurrent enrollment keeps one active class per student and school year",
     });
     expect(student).not.toBeNull();
 
+    await expect.poll(
+      async () =>
+        db.enrollment.count({
+          where: {
+            studentId: student!.id,
+            active: true,
+            classGroup: { schoolYear: { name: "2026" } },
+          },
+        }),
+      { timeout: 5_000 },
+    ).toBe(1);
+
     const active = await db.enrollment.findMany({
       where: {
         studentId: student!.id,
