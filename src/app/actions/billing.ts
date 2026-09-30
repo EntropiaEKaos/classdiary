@@ -4,6 +4,7 @@ import {z} from "zod";
 import {db} from "@/lib/db";
 import {requirePlatformOwner} from "@/lib/auth";
 import {assertTrustedMutationOrigin} from "@/lib/security";
+import { PLAN_CATALOG } from "@/lib/plans";
 
 export async function updateSubscriptionAction(fd:FormData){
   await assertTrustedMutationOrigin();
@@ -24,6 +25,30 @@ export async function updateSubscriptionAction(fd:FormData){
     where:{id:p.organizationId,slug:{not:"classdiary-platform"}}
   });
   if(!org) throw new Error("Organização inválida");
+
+  const [activeStudents,classes,memberships]=await Promise.all([
+    db.student.count({where:{organizationId:p.organizationId,active:true}}),
+    db.classGroup.count({where:{organizationId:p.organizationId}}),
+    db.membership.findMany({
+      where:{organizationId:p.organizationId,user:{active:true}},
+      distinct:["userId"],
+      select:{userId:true}
+    })
+  ]);
+
+  const target=PLAN_CATALOG[p.plan];
+  if(target.maxStudents!==null&&activeStudents>target.maxStudents){
+    throw new Error(`A escola possui ${activeStudents} alunos ativos e não cabe no plano ${target.label}.`);
+  }
+  if(target.maxClasses!==null&&classes>target.maxClasses){
+    throw new Error(`A escola possui ${classes} turmas e não cabe no plano ${target.label}.`);
+  }
+  if(target.maxSeats!==null&&p.seats>target.maxSeats){
+    throw new Error(`O plano ${target.label} permite no máximo ${target.maxSeats} usuários.`);
+  }
+  if(memberships.length>p.seats){
+    throw new Error(`Existem ${memberships.length} usuários ativos. O limite contratado não pode ser menor que o uso atual.`);
+  }
 
   const subscription=await db.subscription.upsert({
     where:{organizationId:p.organizationId},
