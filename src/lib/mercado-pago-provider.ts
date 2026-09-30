@@ -12,7 +12,7 @@ import type {
 
 type FetchLike = typeof fetch;
 
-type MercadoPagoConfig = {
+export type MercadoPagoConfig = {
   accessToken: string;
   webhookSecret: string;
   prices: Record<CheckoutRequest["plan"], number>;
