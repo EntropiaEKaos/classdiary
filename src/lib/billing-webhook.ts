@@ -65,9 +65,18 @@ export async function processBillingWebhookEvent(event: BillingWebhookEvent) {
       return { duplicated: true, eventId: persisted.id };
     }
 
-    if (event.type === "CHECKOUT_APPROVED") {
-      const periodEnd = new Date();
-      periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
+    if (event.type === "CHECKOUT_APPROVED" || event.type === "PAYMENT_RENEWED") {
+      let periodEnd: Date;
+      if (event.periodEnd) {
+        const parsed = new Date(event.periodEnd);
+        if (Number.isNaN(parsed.getTime())) {
+          throw new Error("Data de renovação do gateway é inválida.");
+        }
+        periodEnd = parsed;
+      } else {
+        periodEnd = new Date();
+        periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
+      }
 
       await tx.subscription.update({
         where: { organizationId: checkout.organizationId },
@@ -82,7 +91,13 @@ export async function processBillingWebhookEvent(event: BillingWebhookEvent) {
 
       await tx.billingCheckout.update({
         where: { id: checkout.id },
-        data: { status: "PAID", provider: event.provider },
+        data: {
+          status: "PAID",
+          provider: event.provider,
+          ...(event.providerSubscriptionId
+            ? { providerSubscriptionId: event.providerSubscriptionId }
+            : {}),
+        },
       });
     } else if (event.type === "PAYMENT_FAILED") {
       await tx.subscription.update({
