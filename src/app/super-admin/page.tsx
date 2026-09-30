@@ -14,7 +14,7 @@ export default async function SuperAdminPage(){
       where:{slug:{not:"classdiary-platform"}},
       include:{
         subscription:true,
-        memberships:{select:{userId:true}},
+        memberships:{where:{user:{active:true}},select:{userId:true}},
         _count:{select:{memberships:true,students:true,classGroups:true}}
       },
       orderBy:{createdAt:"desc"}
