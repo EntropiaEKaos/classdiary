@@ -5,8 +5,12 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSchoolRole } from "@/lib/rbac";
+import { activeOrganization, requireUser } from "@/lib/auth";
+import { assertTrustedMutationOrigin } from "@/lib/security";
 
 export async function createPublicEnrollmentLeadAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
+
   const p = z.object({
     organizationSlug: z.string().min(1),
     studentName: z.string().min(2),
@@ -34,6 +38,43 @@ export async function createPublicEnrollmentLeadAction(fd: FormData) {
   });
   if (!org || org.slug === "classdiary-platform") {
     throw new Error("Escola inválida.");
+  }
+
+  const h = await headers();
+  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const throttleKey = "lead:" + org.id + ":" + ip;
+  const now = new Date();
+  const throttle = await db.loginThrottle.findUnique({ where: { key: throttleKey } });
+
+  if (throttle?.blockedUntil && throttle.blockedUntil > now) {
+    throw new Error("Muitas pré-inscrições enviadas. Tente novamente mais tarde.");
+  }
+
+  const oneHour = 60 * 60 * 1000;
+  const windowExpired =
+    !throttle || now.getTime() - throttle.windowStartedAt.getTime() > oneHour;
+  const attempts = windowExpired ? 1 : (throttle?.attempts ?? 0) + 1;
+  const blockedUntil =
+    attempts > 5 ? new Date(now.getTime() + oneHour) : null;
+
+  await db.loginThrottle.upsert({
+    where: { key: throttleKey },
+    update: {
+      attempts,
+      windowStartedAt: windowExpired ? now : throttle!.windowStartedAt,
+      blockedUntil,
+      lastAttemptAt: now,
+    },
+    create: {
+      key: throttleKey,
+      attempts: 1,
+      windowStartedAt: now,
+      lastAttemptAt: now,
+    },
+  });
+
+  if (blockedUntil) {
+    throw new Error("Muitas pré-inscrições enviadas. Tente novamente mais tarde.");
   }
 
   await db.enrollmentLead.create({
@@ -139,6 +180,12 @@ export async function convertEnrollmentLeadAction(fd: FormData) {
 }
 
 export async function acceptStudentContractAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
+
+  const user = await requireUser();
+  const org = await activeOrganization();
+  if (!org) throw new Error("Nenhuma escola ativa.");
+
   const p = z.object({
     contractId: z.string().min(1),
     acceptedByName: z.string().min(2),
@@ -149,12 +196,22 @@ export async function acceptStudentContractAction(fd: FormData) {
     acceptedByDocument: String(fd.get("acceptedByDocument") ?? "").trim(),
   });
 
-  const contract = await db.studentContract.findUnique({
-    where: { id: p.contractId },
+  const contract = await db.studentContract.findFirst({
+    where: {
+      id: p.contractId,
+      organizationId: org.id,
+      status: "ACTIVE",
+      student: {
+        guardians: {
+          some: { userId: user.id },
+        },
+      },
+    },
     include: { organization: true },
   });
-  if (!contract || contract.status !== "ACTIVE") {
-    throw new Error("Contrato inválido.");
+
+  if (!contract) {
+    throw new Error("Contrato inválido ou sem autorização para aceite.");
   }
 
   const h = await headers();
@@ -176,6 +233,16 @@ export async function acceptStudentContractAction(fd: FormData) {
       acceptedByDocument: p.acceptedByDocument || null,
       ipAddress: h.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
       userAgent: h.get("user-agent"),
+    },
+  });
+
+  await db.auditLog.create({
+    data: {
+      userId: user.id,
+      organizationId: org.id,
+      action: "ACCEPT",
+      entity: "StudentContract",
+      entityId: contract.id,
     },
   });
 
