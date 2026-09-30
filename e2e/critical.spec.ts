@@ -169,7 +169,8 @@ test("cross-tenant payload tampering cannot mutate foreign student", async ({ pa
   await loginAsAdmin(page);
   await page.goto("/dashboard/alunos/e2e-demo-student");
 
-  const hiddenStudent = page.locator('input[name="studentId"]');
+  const profileForm = page.locator('form').filter({ hasText: "Salvar ficha" });
+  const hiddenStudent = profileForm.locator('input[name="studentId"]');
   await expect(hiddenStudent).toHaveValue("e2e-demo-student");
   await hiddenStudent.evaluate((element) => {
     (element as HTMLInputElement).value = "e2e-other-student";
