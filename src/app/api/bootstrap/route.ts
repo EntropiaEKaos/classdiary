@@ -132,7 +132,10 @@ export async function POST(req: Request) {
       return { userId: user.id };
     });
 
-    return NextResponse.json({ ok: true, ownerId: result.userId });
+    return NextResponse.json(
+      { ok: true },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
     if (
       error instanceof Error &&
