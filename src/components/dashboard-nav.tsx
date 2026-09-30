@@ -33,6 +33,7 @@ const items: NavItem[] = [
   { href: "/dashboard/executivo", label: "Visão executiva", Icon: ChartNoAxesColumnIncreasing, roles: ["SCHOOL_ADMIN", "COORDINATOR"] },
   { href: "/dashboard/coordenacao", label: "Central da coordenação", Icon: Users, roles: ["SCHOOL_ADMIN", "COORDINATOR"] },
   { href: "/dashboard/operacao-interna", label: "Central operacional", Icon: ClipboardCheck, roles: ["SCHOOL_ADMIN", "COORDINATOR", "SECRETARY"] },
+  { href: "/dashboard/automacao-institucional", label: "Automação institucional", Icon: ChartNoAxesColumnIncreasing, roles: ["SCHOOL_ADMIN", "COORDINATOR"] },
 
   { href: "/dashboard/alunos", label: "Alunos", Icon: GraduationCap, module: "students" },
   { href: "/dashboard/turmas", label: "Turmas", Icon: School, module: "academic" },
