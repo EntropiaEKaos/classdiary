@@ -6,8 +6,10 @@ import { z } from "zod";
 import { activeOrganization, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requireModulePermission } from "@/lib/rbac";
+import { assertTrustedMutationOrigin } from "@/lib/security";
 
 export async function createSurveyAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("quality", "create");
 
   const p = z.object({
@@ -70,6 +72,7 @@ export async function createSurveyAction(fd: FormData) {
 }
 
 export async function submitSurveyResponseAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const user = await requireUser();
   const org = await activeOrganization();
   if (!org) throw new Error("Nenhuma escola ativa.");
@@ -150,6 +153,7 @@ export async function submitSurveyResponseAction(fd: FormData) {
 }
 
 export async function createPedagogicalGoalAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("goals", "create");
 
   const p = z.object({
@@ -296,6 +300,7 @@ async function metricValue(
 }
 
 export async function recalculateGoalsAction() {
+  await assertTrustedMutationOrigin();
   const { org } = await requireModulePermission("goals", "update");
   const goals = await db.pedagogicalGoal.findMany({
     where: { organizationId: org.id, status: "ACTIVE" },
@@ -322,6 +327,7 @@ export async function recalculateGoalsAction() {
 }
 
 export async function askAdministrativeAssistantAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("assistant", "view");
   const question = z.string().min(3).max(500).parse(
     String(fd.get("question") ?? "").trim(),

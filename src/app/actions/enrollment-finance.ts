@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { requireSchoolRole } from "@/lib/rbac";
 import { activeOrganization, requireUser } from "@/lib/auth";
 import { assertTrustedMutationOrigin } from "@/lib/security";
+import { retrySerializable } from "@/lib/transaction-retry";
 
 export async function createPublicEnrollmentLeadAction(fd: FormData) {
   await assertTrustedMutationOrigin();
@@ -136,49 +137,64 @@ export async function convertEnrollmentLeadAction(fd: FormData) {
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "SECRETARY"]);
 
   const leadId = z.string().min(1).parse(String(fd.get("id") ?? ""));
-  const lead = await db.enrollmentLead.findFirst({
-    where: { id: leadId, organizationId: org.id },
-  });
-  if (!lead) throw new Error("Pré-inscrição inválida.");
 
-  if (lead.convertedStudentId) return;
+  const result = await retrySerializable(() =>
+    db.$transaction(
+      async (tx) => {
+        const lead = await tx.enrollmentLead.findFirst({
+          where: { id: leadId, organizationId: org.id },
+        });
+        if (!lead) throw new Error("Pré-inscrição inválida.");
 
-  const registration = `PRE-${Date.now().toString().slice(-8)}`;
+        if (lead.convertedStudentId) {
+          return { studentId: lead.convertedStudentId, converted: false };
+        }
 
-  const student = await db.student.create({
-    data: {
-      organizationId: org.id,
-      name: lead.studentName,
-      registration,
-      birthDate: lead.birthDate,
-      guardianName: lead.guardianName,
-      guardianEmail: lead.guardianEmail,
-      guardianPhone: lead.guardianPhone,
-      active: true,
-    },
-  });
+        const registration =
+          `PRE-${Date.now().toString().slice(-8)}-${lead.id.slice(-4).toUpperCase()}`;
 
-  await db.enrollmentLead.update({
-    where: { id: lead.id },
-    data: {
-      status: "CONVERTED",
-      convertedStudentId: student.id,
-    },
-  });
+        const student = await tx.student.create({
+          data: {
+            organizationId: org.id,
+            name: lead.studentName,
+            registration,
+            birthDate: lead.birthDate,
+            guardianName: lead.guardianName,
+            guardianEmail: lead.guardianEmail,
+            guardianPhone: lead.guardianPhone,
+            active: true,
+          },
+        });
 
-  await db.auditLog.create({
-    data: {
-      userId: user.id,
-      organizationId: org.id,
-      action: "CONVERT",
-      entity: "EnrollmentLead",
-      entityId: lead.id,
-      metadata: { studentId: student.id },
-    },
-  });
+        await tx.enrollmentLead.update({
+          where: { id: lead.id },
+          data: {
+            status: "CONVERTED",
+            convertedStudentId: student.id,
+          },
+        });
 
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            organizationId: org.id,
+            action: "CONVERT",
+            entity: "EnrollmentLead",
+            entityId: lead.id,
+            metadata: { studentId: student.id },
+          },
+        });
+
+        return { studentId: student.id, converted: true };
+      },
+      { isolationLevel: "Serializable" },
+    ),
+  );
+
+  if (result.converted) {
+    revalidatePath("/dashboard/alunos");
+  }
   revalidatePath("/dashboard/pre-inscricoes");
-  revalidatePath("/dashboard/alunos");
 }
 
 export async function acceptStudentContractAction(fd: FormData) {

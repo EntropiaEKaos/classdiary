@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireModulePermission, requireSchoolRole } from "@/lib/rbac";
 import { assertTrustedMutationOrigin } from "@/lib/security";
+import { retrySerializable } from "@/lib/transaction-retry";
 
 function calculateDiscount(
   amount: number,
@@ -261,8 +262,37 @@ export async function registerPaymentAction(fd: FormData) {
 
   const prefix = settings?.receiptPrefix ?? "REC";
 
-  const result = await db.$transaction(
+  const result = await retrySerializable(() => db.$transaction(
     async (tx) => {
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "Invoice"
+        WHERE "id" = ${p.invoiceId}
+          AND "organizationId" = ${org.id}
+        FOR UPDATE
+      `;
+
+      if (p.externalReference) {
+        const existingPayment = await tx.payment.findFirst({
+          where: {
+            organizationId: org.id,
+            invoiceId: p.invoiceId,
+            externalReference: p.externalReference,
+          },
+        });
+
+        if (existingPayment) {
+          if (
+            Number(existingPayment.amount) !== p.amount ||
+            existingPayment.method !== p.method
+          ) {
+            throw new Error("Referência externa já utilizada com dados diferentes.");
+          }
+
+          return { invoiceId: existingPayment.invoiceId };
+        }
+      }
+
       const invoice = await tx.invoice.findFirst({
         where: {
           id: p.invoiceId,
@@ -344,8 +374,8 @@ export async function registerPaymentAction(fd: FormData) {
 
       return { invoiceId: invoice.id };
     },
-    { isolationLevel: "Serializable" },
-  );
+    { isolationLevel: "ReadCommitted" },
+  ));
 
   revalidatePath("/dashboard/financeiro/cobrancas");
   revalidatePath("/dashboard/financeiro");

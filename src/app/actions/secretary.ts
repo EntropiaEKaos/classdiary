@@ -3,9 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { assertTrustedMutationOrigin } from "@/lib/security";
+import { retrySerializable } from "@/lib/transaction-retry";
 import { requireSchoolRole } from "@/lib/rbac";
 
 export async function updateStudentProfileAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "COORDINATOR", "SECRETARY"]);
 
   const p = z.object({
@@ -84,6 +87,7 @@ export async function updateStudentProfileAction(fd: FormData) {
 }
 
 export async function upsertStudentDocumentAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "COORDINATOR", "SECRETARY"]);
 
   const p = z.object({
@@ -142,6 +146,7 @@ export async function upsertStudentDocumentAction(fd: FormData) {
 }
 
 export async function transferStudentAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "COORDINATOR", "SECRETARY"]);
 
   const p = z.object({
@@ -175,7 +180,7 @@ export async function transferStudentAction(fd: FormData) {
     orderBy: { createdAt: "desc" },
   });
 
-  await db.$transaction(async (tx) => {
+  await retrySerializable(() => db.$transaction(async (tx) => {
     await tx.enrollment.updateMany({
       where: {
         studentId: student.id,
@@ -214,7 +219,7 @@ export async function transferStudentAction(fd: FormData) {
         notes: p.notes || null,
       },
     });
-  });
+  }, { isolationLevel: "Serializable" }));
 
   await db.auditLog.create({
     data: {
@@ -235,6 +240,7 @@ export async function transferStudentAction(fd: FormData) {
 }
 
 export async function reenrollStudentAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "COORDINATOR", "SECRETARY"]);
 
   const p = z.object({
@@ -251,7 +257,7 @@ export async function reenrollStudentAction(fd: FormData) {
   ]);
   if (!student || !target) throw new Error("Aluno ou turma inválida.");
 
-  const { enrollment, movement } = await db.$transaction(async (tx) => {
+  const { enrollment, movement } = await retrySerializable(() => db.$transaction(async (tx) => {
     await tx.enrollment.updateMany({
       where: {
         studentId: student.id,
@@ -291,7 +297,7 @@ export async function reenrollStudentAction(fd: FormData) {
     });
 
     return { enrollment, movement };
-  });
+  }, { isolationLevel: "Serializable" }));
 
   await db.auditLog.create({
     data: {
@@ -308,6 +314,7 @@ export async function reenrollStudentAction(fd: FormData) {
 }
 
 export async function calculateAnnualResultAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "COORDINATOR"]);
 
   const studentId = z.string().min(1).parse(String(fd.get("studentId") ?? ""));
@@ -418,6 +425,7 @@ export async function calculateAnnualResultAction(fd: FormData) {
 }
 
 export async function importStudentsCsvAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole(["SCHOOL_ADMIN", "COORDINATOR", "SECRETARY"]);
 
   const raw = z.string().min(1).parse(String(fd.get("csv") ?? ""));

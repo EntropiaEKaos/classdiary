@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { assertTrustedMutationOrigin } from "@/lib/security";
+import { retrySerializable } from "@/lib/transaction-retry";
 import { requireSchoolRole } from "@/lib/rbac";
 
 async function getMembershipRole(userId: string, organizationId: string) {
@@ -47,6 +49,7 @@ async function assertTeacherScope(params: {
 }
 
 export async function enrollStudentAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole([
     "SCHOOL_ADMIN",
     "COORDINATOR",
@@ -76,7 +79,7 @@ export async function enrollStudentAction(fd: FormData) {
     throw new Error("Aluno ou turma inválidos.");
   }
 
-  const enrollment = await db.$transaction(async (tx) => {
+  const enrollment = await retrySerializable(() => db.$transaction(async (tx) => {
     const activeSameYear = await tx.enrollment.findMany({
       where: {
         studentId: student.id,
@@ -110,7 +113,7 @@ export async function enrollStudentAction(fd: FormData) {
         classGroupId: group.id,
       },
     });
-  });
+  }, { isolationLevel: "Serializable" }));
 
   await db.auditLog.create({
     data: {
@@ -128,6 +131,7 @@ export async function enrollStudentAction(fd: FormData) {
 }
 
 export async function createSubjectAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole([
     "SCHOOL_ADMIN",
     "COORDINATOR",
@@ -165,6 +169,7 @@ export async function createSubjectAction(fd: FormData) {
 }
 
 export async function assignSubjectAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole([
     "SCHOOL_ADMIN",
     "COORDINATOR",
@@ -239,6 +244,7 @@ export async function assignSubjectAction(fd: FormData) {
 }
 
 export async function createLessonAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole([
     "SCHOOL_ADMIN",
     "COORDINATOR",
@@ -328,6 +334,7 @@ export async function createLessonAction(fd: FormData) {
 }
 
 export async function markAttendanceAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole([
     "SCHOOL_ADMIN",
     "COORDINATOR",
@@ -405,6 +412,7 @@ export async function markAttendanceAction(fd: FormData) {
 }
 
 export async function createGradeAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole([
     "SCHOOL_ADMIN",
     "COORDINATOR",
@@ -527,6 +535,7 @@ export async function createGradeAction(fd: FormData) {
 }
 
 export async function closePeriodAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireSchoolRole([
     "SCHOOL_ADMIN",
     "COORDINATOR",

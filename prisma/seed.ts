@@ -151,6 +151,25 @@ async function main() {
     },
   });
 
+  await db.classGroup.upsert({
+    where: {
+      organizationId_schoolYearId_name: {
+        organizationId: school.id,
+        schoolYearId: year.id,
+        name: "7º Ano B",
+      },
+    },
+    update: {},
+    create: {
+      organizationId: school.id,
+      schoolYearId: year.id,
+      name: "7º Ano B",
+      gradeLevel: "7º Ano",
+      shift: "Manhã",
+      room: "Sala 8",
+    },
+  });
+
   const subject = await db.subject.upsert({
     where: {
       organizationId_name: {
@@ -247,6 +266,7 @@ async function main() {
     },
     update: { active: true },
     create: {
+      id: "e2e-demo-student",
       organizationId: school.id,
       name: "Aluno Demo",
       registration: "DEMO-001",

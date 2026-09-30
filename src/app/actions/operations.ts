@@ -7,6 +7,7 @@ import { requireModulePermission } from "@/lib/rbac";
 import { assertTrustedMutationOrigin } from "@/lib/security";
 
 export async function createEmployeeAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("hr","create");
   const p=z.object({
     name:z.string().min(2),email:z.string().email().optional().or(z.literal("")),
@@ -32,6 +33,7 @@ export async function createEmployeeAction(fd:FormData){
 }
 
 export async function clockEmployeeAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("hr","update");
   const employeeId=z.string().min(1).parse(String(fd.get("employeeId")??""));
   const employee=await db.employee.findFirst({where:{id:employeeId,organizationId:org.id,active:true}});
@@ -46,6 +48,7 @@ export async function clockEmployeeAction(fd:FormData){
 }
 
 export async function createAssetAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("assets","create");
   const p=z.object({tag:z.string().min(1),name:z.string().min(2),category:z.string().min(1),serialNumber:z.string().optional(),location:z.string().optional(),acquisitionValue:z.coerce.number().min(0).optional()}).parse({
     tag:String(fd.get("tag")??"").trim(),name:String(fd.get("name")??"").trim(),category:String(fd.get("category")??"").trim(),
@@ -57,6 +60,7 @@ export async function createAssetAction(fd:FormData){
 }
 
 export async function createInventoryItemAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("inventory","create");
   const p=z.object({sku:z.string().min(1),name:z.string().min(2),category:z.string().optional(),unit:z.string().min(1),minQuantity:z.coerce.number().min(0),averageCost:z.coerce.number().min(0)}).parse({
     sku:String(fd.get("sku")??"").trim(),name:String(fd.get("name")??"").trim(),category:String(fd.get("category")??"").trim(),
@@ -85,6 +89,7 @@ export async function moveInventoryAction(fd:FormData){
 }
 
 export async function createLibraryBookAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("library","create");
   const p=z.object({code:z.string().min(1),title:z.string().min(2),author:z.string().optional(),isbn:z.string().optional(),category:z.string().optional(),copiesTotal:z.coerce.number().int().min(1)}).parse({
     code:String(fd.get("code")??"").trim(),title:String(fd.get("title")??"").trim(),author:String(fd.get("author")??"").trim(),
@@ -115,6 +120,7 @@ export async function loanLibraryBookAction(fd:FormData){
 }
 
 export async function returnLibraryBookAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("library","update");
   const id=z.string().min(1).parse(String(fd.get("loanId")??""));
   const loan=await db.libraryLoan.findFirst({where:{id,organizationId:org.id,status:"BORROWED"}});
@@ -127,6 +133,7 @@ export async function returnLibraryBookAction(fd:FormData){
 }
 
 export async function createTransportRouteAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("transport","create");
   const p=z.object({name:z.string().min(2),vehiclePlate:z.string().optional(),driverName:z.string().optional(),driverPhone:z.string().optional(),capacity:z.coerce.number().int().min(1).optional()}).parse({
     name:String(fd.get("name")??"").trim(),vehiclePlate:String(fd.get("vehiclePlate")??"").trim(),driverName:String(fd.get("driverName")??"").trim(),
@@ -137,6 +144,7 @@ export async function createTransportRouteAction(fd:FormData){
 }
 
 export async function assignTransportStudentAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("transport","update");
   const p=z.object({routeId:z.string().min(1),studentId:z.string().min(1)}).parse({routeId:String(fd.get("routeId")??""),studentId:String(fd.get("studentId")??"")});
   const [route,student]=await Promise.all([
@@ -157,6 +165,7 @@ export async function assignTransportStudentAction(fd:FormData){
 }
 
 export async function createCanteenItemAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("canteen","create");
   const p=z.object({name:z.string().min(2),category:z.string().optional(),price:z.coerce.number().positive(),stockQuantity:z.coerce.number().min(0)}).parse({
     name:String(fd.get("name")??"").trim(),category:String(fd.get("category")??"").trim(),price:fd.get("price"),stockQuantity:fd.get("stockQuantity")||0

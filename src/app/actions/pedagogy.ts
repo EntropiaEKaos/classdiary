@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireModulePermission } from "@/lib/rbac";
+import { assertTrustedMutationOrigin } from "@/lib/security";
 
 async function ensureTeacherScope(
   userId: string,
@@ -36,6 +37,7 @@ async function ensureTeacherScope(
 }
 
 export async function createCurriculumFrameworkAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { org } = await requireModulePermission("curriculum", "create");
   const p = z.object({
     name: z.string().min(2),
@@ -63,6 +65,7 @@ export async function createCurriculumFrameworkAction(fd: FormData) {
 }
 
 export async function createCurriculumCompetencyAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { org } = await requireModulePermission("curriculum", "create");
   const p = z.object({
     frameworkId: z.string().min(1),
@@ -101,6 +104,7 @@ export async function createCurriculumCompetencyAction(fd: FormData) {
 }
 
 export async function createCurriculumMatrixAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { org } = await requireModulePermission("curriculum", "create");
   const p = z.object({
     frameworkId: z.string().min(1),
@@ -133,6 +137,7 @@ export async function createCurriculumMatrixAction(fd: FormData) {
 }
 
 export async function addMatrixSubjectAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { org } = await requireModulePermission("curriculum", "update");
   const p = z.object({
     matrixId: z.string().min(1),
@@ -179,6 +184,7 @@ export async function addMatrixSubjectAction(fd: FormData) {
 }
 
 export async function createRubricAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("pedagogy", "create");
   const p = z.object({
     subjectId: z.string().optional(),
@@ -243,6 +249,7 @@ export async function createRubricAction(fd: FormData) {
 }
 
 export async function createLessonPlanAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("pedagogy", "create");
   const p = z.object({
     classGroupId: z.string().min(1),
@@ -311,6 +318,7 @@ export async function createLessonPlanAction(fd: FormData) {
 }
 
 export async function createPedagogicalInterventionAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("pedagogy", "create");
   const p = z.object({
     studentId: z.string().min(1),
@@ -357,6 +365,7 @@ export async function createPedagogicalInterventionAction(fd: FormData) {
 }
 
 export async function closePedagogicalInterventionAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { org } = await requireModulePermission("pedagogy", "update");
   const p = z.object({
     id: z.string().min(1),
@@ -384,6 +393,7 @@ export async function closePedagogicalInterventionAction(fd: FormData) {
 }
 
 export async function assessCompetencyAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("pedagogy", "create");
   const p = z.object({
     studentId: z.string().min(1),
@@ -433,6 +443,7 @@ export async function assessCompetencyAction(fd: FormData) {
 }
 
 export async function createPedagogicalObservationAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("pedagogy", "create");
   const p = z.object({
     studentId: z.string().min(1),

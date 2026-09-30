@@ -6,6 +6,7 @@ import { z } from "zod";
 import { activeOrganization, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requireModulePermission } from "@/lib/rbac";
+import { assertTrustedMutationOrigin } from "@/lib/security";
 
 async function requireTeacherAssessmentScope(
   userId: string,
@@ -163,6 +164,7 @@ async function postAttemptToGradebook(attemptId: string) {
 }
 
 export async function createQuestionBankItemAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("assessments", "create");
 
   const p = z.object({
@@ -243,6 +245,7 @@ export async function createQuestionBankItemAction(fd: FormData) {
 }
 
 export async function createExamAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("assessments", "create");
 
   const p = z.object({
@@ -327,6 +330,7 @@ export async function createExamAction(fd: FormData) {
 }
 
 export async function addQuestionToExamAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("assessments", "update");
 
   const p = z.object({
@@ -378,6 +382,7 @@ export async function addQuestionToExamAction(fd: FormData) {
 }
 
 export async function generateExamFromCompetencyAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("assessments", "create");
 
   const p = z.object({
@@ -444,6 +449,7 @@ export async function generateExamFromCompetencyAction(fd: FormData) {
 }
 
 export async function publishExamAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("assessments", "update");
   const id = z.string().min(1).parse(String(fd.get("examId") ?? ""));
 
@@ -471,6 +477,7 @@ export async function publishExamAction(fd: FormData) {
 }
 
 export async function startExamAttemptAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const user = await requireUser();
   const org = await activeOrganization();
   if (!org) throw new Error("Nenhuma escola ativa.");
@@ -563,6 +570,7 @@ function normalize(value: string) {
 }
 
 export async function submitExamAttemptAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const user = await requireUser();
   const org = await activeOrganization();
   if (!org) throw new Error("Nenhuma escola ativa.");
@@ -664,6 +672,7 @@ export async function submitExamAttemptAction(fd: FormData) {
 }
 
 export async function gradeExamAnswerAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("assessments", "update");
 
   const p = z.object({
@@ -747,6 +756,7 @@ export async function gradeExamAnswerAction(fd: FormData) {
 }
 
 export async function applyRubricAssessmentAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("assessments", "update");
 
   const p = z.object({
@@ -810,6 +820,7 @@ export async function applyRubricAssessmentAction(fd: FormData) {
 
 
 export async function importQuestionBankCsvAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("assessments", "create");
   const raw = z.string().min(1).parse(String(fd.get("csv") ?? ""));
   const lines = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
@@ -854,6 +865,7 @@ export async function importQuestionBankCsvAction(fd: FormData) {
 }
 
 export async function createExamBlueprintAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { org } = await requireModulePermission("assessments", "create");
   const p = z.object({
     name: z.string().min(2),
@@ -902,6 +914,7 @@ export async function createExamBlueprintAction(fd: FormData) {
 }
 
 export async function generateExamFromBlueprintAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("assessments", "create");
   const p = z.object({
     blueprintId: z.string().min(1),
@@ -981,6 +994,7 @@ export async function generateExamFromBlueprintAction(fd: FormData) {
 
 
 export async function grantExamAttemptAllowanceAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("assessments", "update");
   const p = z.object({
     examId: z.string().min(1),
@@ -1028,6 +1042,7 @@ export async function grantExamAttemptAllowanceAction(fd: FormData) {
 }
 
 export async function generateRecoveryExamAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("assessments", "update");
   const recoveryCaseId = z.string().min(1).parse(String(fd.get("caseId") ?? ""));
 
@@ -1113,6 +1128,7 @@ export async function generateRecoveryExamAction(fd: FormData) {
 }
 
 export async function requestExamReviewAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const user = await requireUser();
   const org = await activeOrganization();
   if (!org) throw new Error("Nenhuma escola ativa.");
@@ -1161,6 +1177,7 @@ export async function requestExamReviewAction(fd: FormData) {
 }
 
 export async function reviewExamRequestAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
   const { user, org } = await requireModulePermission("assessments", "update");
   const p = z.object({
     id: z.string().min(1),
@@ -1202,6 +1219,7 @@ export async function recordExamIntegrityEventAction(
   attemptId: string,
   type: "FOCUS_LOSS" | "COPY" | "PASTE" | "VISIBILITY_HIDDEN",
 ) {
+  await assertTrustedMutationOrigin();
   const user = await requireUser();
   const org = await activeOrganization();
   if (!org) return;
