@@ -130,8 +130,18 @@ export async function createAutomationRuleAction(fd:FormData){
   const p=z.object({name:z.string().min(2),event:z.string().min(1),action:z.string().min(1),configuration:z.string().optional()}).parse({
     name:String(fd.get("name")??"").trim(),event:String(fd.get("event")??"").trim(),action:String(fd.get("action")??"").trim(),configuration:String(fd.get("configuration")??"").trim()
   });
-  let configuration:Record<string,unknown>|null=null;
-  if(p.configuration){try{configuration=JSON.parse(p.configuration)}catch{throw new Error("Configuração JSON inválida")}}
+  let configuration: Record<string, string | number | boolean | null> | undefined;
+  if (p.configuration) {
+    try {
+      const parsed = JSON.parse(p.configuration);
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+        throw new Error("Configuração deve ser um objeto JSON");
+      }
+      configuration = parsed;
+    } catch {
+      throw new Error("Configuração JSON inválida");
+    }
+  }
   await db.automationRule.create({data:{organizationId:org.id,name:p.name,event:p.event,action:p.action,configuration}});
   revalidatePath("/dashboard/automacoes");
 }
