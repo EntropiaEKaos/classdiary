@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireModulePermission } from "@/lib/rbac";
+import { assertTrustedMutationOrigin } from "@/lib/security";
 
 export async function createMedicalRecordAction(fd:FormData){
   const {user,org}=await requireModulePermission("health","create");
@@ -18,13 +19,16 @@ export async function createMedicalRecordAction(fd:FormData){
 }
 
 export async function createGuardianAuthorizationAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {org}=await requireModulePermission("health","create");
   const p=z.object({studentId:z.string().min(1),type:z.string().min(1),title:z.string().min(2),description:z.string().optional(),expiresAt:z.string().optional()}).parse({
     studentId:String(fd.get("studentId")??""),type:String(fd.get("type")??"").trim(),title:String(fd.get("title")??"").trim(),description:String(fd.get("description")??"").trim(),expiresAt:String(fd.get("expiresAt")??"")
   });
-  const student=await db.student.findFirst({where:{id:p.studentId,organizationId:org.id}});
+  const student=await db.student.findFirst({where:{id:p.studentId,organizationId:org.id,active:true}});
   if(!student) throw new Error("Aluno inválido");
-  await db.guardianAuthorization.create({data:{organizationId:org.id,studentId:student.id,type:p.type,title:p.title,description:p.description||null,expiresAt:p.expiresAt?new Date(p.expiresAt):null}});
+  const expiresAt=p.expiresAt?new Date(p.expiresAt):null;
+  if(expiresAt&&Number.isNaN(expiresAt.getTime())) throw new Error("Data de validade inválida");
+  await db.guardianAuthorization.create({data:{organizationId:org.id,studentId:student.id,type:p.type,title:p.title,description:p.description||null,expiresAt}});
   revalidatePath("/dashboard/autorizacoes");
 }
 
@@ -43,7 +47,7 @@ export async function reserveResourceAction(fd:FormData){
     resourceId:String(fd.get("resourceId")??""),title:String(fd.get("title")??"").trim(),startsAt:String(fd.get("startsAt")??""),endsAt:String(fd.get("endsAt")??""),notes:String(fd.get("notes")??"").trim()
   });
   const startsAt=new Date(p.startsAt),endsAt=new Date(p.endsAt);
-  if(endsAt<=startsAt) throw new Error("Horário final inválido");
+  if(Number.isNaN(startsAt.getTime())||Number.isNaN(endsAt.getTime())||endsAt<=startsAt) throw new Error("Intervalo de reserva inválido");
   const resource=await db.resource.findFirst({where:{id:p.resourceId,organizationId:org.id,active:true}});
   if(!resource) throw new Error("Recurso inválido");
   const conflict=await db.resourceReservation.findFirst({where:{resourceId:resource.id,startsAt:{lt:endsAt},endsAt:{gt:startsAt}}});
@@ -59,15 +63,22 @@ export async function createMaintenancePlanAction(fd:FormData){
   });
   const asset=await db.asset.findFirst({where:{id:p.assetId,organizationId:org.id}});
   if(!asset) throw new Error("Patrimônio inválido");
-  await db.maintenancePlan.create({data:{organizationId:org.id,assetId:asset.id,name:p.name,frequencyDays:p.frequencyDays,nextDueAt:new Date(p.nextDueAt)}});
+  const nextDueAt=new Date(p.nextDueAt);
+  if(Number.isNaN(nextDueAt.getTime())) throw new Error("Data de manutenção inválida");
+  await db.maintenancePlan.create({data:{organizationId:org.id,assetId:asset.id,name:p.name,frequencyDays:p.frequencyDays,nextDueAt}});
   revalidatePath("/dashboard/manutencao");
 }
 
 export async function createMaintenanceTicketAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {user,org}=await requireModulePermission("maintenance","create");
   const p=z.object({assetId:z.string().optional(),title:z.string().min(2),description:z.string().min(2),priority:z.enum(["LOW","MEDIUM","HIGH","CRITICAL"])}).parse({
     assetId:String(fd.get("assetId")??"")||undefined,title:String(fd.get("title")??"").trim(),description:String(fd.get("description")??"").trim(),priority:String(fd.get("priority")??"MEDIUM")
   });
+  if(p.assetId){
+    const asset=await db.asset.findFirst({where:{id:p.assetId,organizationId:org.id}});
+    if(!asset) throw new Error("Patrimônio inválido");
+  }
   await db.maintenanceTicket.create({data:{organizationId:org.id,assetId:p.assetId||null,createdById:user.id,title:p.title,description:p.description,priority:p.priority}});
   revalidatePath("/dashboard/manutencao");
 }
@@ -91,10 +102,15 @@ export async function createSupplierAction(fd:FormData){
 }
 
 export async function createPurchaseOrderAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {user,org}=await requireModulePermission("procurement","create");
   const p=z.object({supplierId:z.string().optional(),description:z.string().min(2),totalAmount:z.coerce.number().min(0)}).parse({
     supplierId:String(fd.get("supplierId")??"")||undefined,description:String(fd.get("description")??"").trim(),totalAmount:fd.get("totalAmount")||0
   });
+  if(p.supplierId){
+    const supplier=await db.supplier.findFirst({where:{id:p.supplierId,organizationId:org.id}});
+    if(!supplier) throw new Error("Fornecedor inválido");
+  }
   const number="PO-"+Date.now().toString().slice(-10);
   await db.purchaseOrder.create({data:{organizationId:org.id,supplierId:p.supplierId||null,createdById:user.id,number,description:p.description,totalAmount:p.totalAmount,status:"DRAFT"}});
   revalidatePath("/dashboard/compras");
@@ -122,6 +138,7 @@ export async function createAutomationRuleAction(fd:FormData){
 
 
 export async function answerGuardianAuthorizationAction(fd:FormData){
+  await assertTrustedMutationOrigin();
   const {activeOrganization,requireUser}=await import("@/lib/auth");
   const user=await requireUser();
   const org=await activeOrganization();
