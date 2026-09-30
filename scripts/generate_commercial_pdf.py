@@ -128,6 +128,9 @@ story += module_table("2. Núcleo acadêmico e secretaria", [
 ("Revisão de nota","Aluno/responsável solicita revisão; professor responsável ou coordenação analisa; impede duplicidade pendente."),
 ("Recuperação","Registro de recuperação com proveniência de ano/período/turma e integração com resultados."),
 ("Fechamento de período","Bloqueio acadêmico por período e registro de quem realizou o fechamento."),
+("Operação acadêmica","Painel de prontidão por turma/disciplina com aulas, cobertura de frequência, alunos sem nota, revisões/justificativas pendentes e notificação direta ao professor."),
+("Risco acadêmico","Detecção de alunos abaixo da média ou frequência mínima, classificação de risco, abertura de intervenção e notificação do responsável."),
+("Fechamento anual","Checklist de períodos fechados, progresso de resultados, promovidos/retidos e recálculo anual em lote."),
 ("Resultados anuais","Cálculo de resultado anual com média e frequência, segregado por ano letivo."),
 ("Boletins","Boletim individual em PDF e geração em lote, com escopo por ano letivo e autorização por perfil."),
 ("Conselho de classe","Registro de decisões do conselho vinculadas a aluno, ano, período e autor."),
@@ -211,7 +214,7 @@ story += module_table("7. Operação escolar integrada", [
 ("Automações","Regras operacionais para manutenção próxima, estoque baixo e autorizações pendentes."),
 ])
 story += module_table("8. Gestão, BI, auditoria e SaaS", [
-("Visão executiva","KPIs acadêmicos, financeiros e operacionais em uma página consolidada."),
+("Visão executiva","KPIs acadêmicos, financeiros e operacionais em uma página consolidada, incluindo progresso de fechamento anual."),
 ("BI executivo","Exportação de indicadores em CSV para análise externa."),
 ("Relatórios acadêmicos","Relatórios detalhados, evolução, frequência, notas e histórico."),
 ("Auditoria","Registro de ações críticas com usuário, organização, entidade, ação e metadados."),
