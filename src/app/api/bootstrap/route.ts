@@ -63,7 +63,7 @@ export async function POST(req: Request) {
   const passwordHash = await hash(parsed.data.password, 12);
 
   try {
-    const result = await db.$transaction(async (tx) => {
+    await db.$transaction(async (tx) => {
       const existingOwner = await tx.membership.findFirst({
         where: { role: "PLATFORM_OWNER" },
         select: { id: true },
@@ -129,7 +129,6 @@ export async function POST(req: Request) {
         },
       });
 
-      return { userId: user.id };
     });
 
     return NextResponse.json(
