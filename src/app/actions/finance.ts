@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireModulePermission, requireSchoolRole } from "@/lib/rbac";
 import { assertTrustedMutationOrigin } from "@/lib/security";
+import { retrySerializable } from "@/lib/transaction-retry";
 
 function calculateDiscount(
   amount: number,
@@ -261,7 +262,7 @@ export async function registerPaymentAction(fd: FormData) {
 
   const prefix = settings?.receiptPrefix ?? "REC";
 
-  const result = await db.$transaction(
+  const result = await retrySerializable(() => db.$transaction(
     async (tx) => {
       const invoice = await tx.invoice.findFirst({
         where: {
@@ -345,7 +346,7 @@ export async function registerPaymentAction(fd: FormData) {
       return { invoiceId: invoice.id };
     },
     { isolationLevel: "Serializable" },
-  );
+  ));
 
   revalidatePath("/dashboard/financeiro/cobrancas");
   revalidatePath("/dashboard/financeiro");
