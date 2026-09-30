@@ -4,9 +4,11 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 
 const COOKIE = "classdiary_session";
-const SESSION_MS = 14 * 86_400_000;
+const SESSION_MS = 7 * 86_400_000;
+const MAX_ACTIVE_SESSIONS = 5;
 
-const hash = (value: string) => createHash("sha256").update(value).digest("hex");
+const hash = (value: string) =>
+  createHash("sha256").update(value).digest("hex");
 
 async function sessionFromCookie() {
   const token = (await cookies()).get(COOKIE)?.value;
@@ -25,13 +27,44 @@ async function sessionFromCookie() {
     },
   });
 
-  if (!session || session.expiresAt <= new Date() || !session.user.active) return null;
+  if (!session) return null;
+
+  if (session.expiresAt <= new Date() || !session.user.active) {
+    await db.session.deleteMany({ where: { id: session.id } });
+    return null;
+  }
+
   return session;
 }
 
 export async function createSession(userId: string) {
   const token = randomBytes(32).toString("hex");
   const headerStore = await headers();
+  const now = new Date();
+
+  await db.session.deleteMany({
+    where: {
+      userId,
+      expiresAt: { lte: now },
+    },
+  });
+
+  const activeSessions = await db.session.findMany({
+    where: {
+      userId,
+      expiresAt: { gt: now },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+
+  const stale = activeSessions.slice(MAX_ACTIVE_SESSIONS - 1);
+
+  if (stale.length) {
+    await db.session.deleteMany({
+      where: { id: { in: stale.map((item) => item.id) } },
+    });
+  }
 
   const membership = await db.membership.findFirst({
     where: {
@@ -51,7 +84,8 @@ export async function createSession(userId: string) {
       activeOrganizationId: membership?.organizationId ?? null,
       expiresAt: new Date(Date.now() + SESSION_MS),
       userAgent: headerStore.get("user-agent"),
-      ipAddress: headerStore.get("x-forwarded-for")?.split(",")[0]?.trim(),
+      ipAddress:
+        headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
     },
   });
 
@@ -69,7 +103,9 @@ export async function destroySession() {
   const token = cookieStore.get(COOKIE)?.value;
 
   if (token) {
-    await db.session.deleteMany({ where: { tokenHash: hash(token) } });
+    await db.session.deleteMany({
+      where: { tokenHash: hash(token) },
+    });
   }
 
   cookieStore.delete(COOKIE);
@@ -99,7 +135,8 @@ export async function activeOrganization() {
   if (!allowed.length) return null;
 
   const selected = allowed.find(
-    (membership) => membership.organizationId === session.activeOrganizationId,
+    (membership) =>
+      membership.organizationId === session.activeOrganizationId,
   );
 
   return (selected ?? allowed[0]).organization;
@@ -116,7 +153,9 @@ export async function setActiveOrganization(organizationId: string) {
       membership.organization.slug !== "classdiary-platform",
   );
 
-  if (!allowed) throw new Error("Organização não disponível para este usuário.");
+  if (!allowed) {
+    throw new Error("Organização não disponível para este usuário.");
+  }
 
   await db.session.update({
     where: { id: session.id },
@@ -126,8 +165,14 @@ export async function setActiveOrganization(organizationId: string) {
 
 export async function requirePlatformOwner() {
   const user = await requireUser();
-  if (!user.memberships.some((membership) => membership.role === "PLATFORM_OWNER")) {
+
+  if (
+    !user.memberships.some(
+      (membership) => membership.role === "PLATFORM_OWNER",
+    )
+  ) {
     redirect("/dashboard");
   }
+
   return user;
 }
