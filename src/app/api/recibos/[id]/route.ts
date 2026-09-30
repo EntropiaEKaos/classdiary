@@ -2,6 +2,7 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { NextResponse } from "next/server";
 import { activeOrganization, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { hasModulePermission } from "@/lib/rbac";
 
 export async function GET(
   _request: Request,
@@ -41,13 +42,7 @@ export async function GET(
     return NextResponse.json({ error: "Recibo não encontrado." }, { status: 404 });
   }
 
-  const staff = user.memberships.some(
-    (membership) =>
-      membership.organizationId === org.id &&
-      ["SCHOOL_ADMIN", "COORDINATOR", "SECRETARY"].includes(
-        membership.role,
-      ),
-  );
+  const staff = await hasModulePermission("finance", "view");
 
   const guardian = receipt.student.guardians.some(
     (link) => link.userId === user.id,
