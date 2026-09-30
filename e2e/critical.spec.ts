@@ -44,6 +44,7 @@ test("school admin can login and open critical protected areas", async ({ page }
     "/dashboard/operacao-interna",
     "/dashboard/automacao-institucional",
     "/dashboard/coordenacao",
+    "/dashboard/plano",
   ]) {
     await page.goto(route);
     await expect(page).not.toHaveURL(/\/login/);
@@ -352,6 +353,72 @@ test("concurrent duplicate payment is idempotent by external reference", async (
   } finally {
     await contextA.close();
     await contextB.close();
+  }
+});
+
+
+
+test("starter seat limit blocks a new teacher without orphaning a user", async ({ page }) => {
+  const org = await db.organization.findUnique({
+    where: { slug: "escola-demo" },
+    include: { subscription: true },
+  });
+  expect(org?.subscription).not.toBeNull();
+
+  const memberships = await db.membership.findMany({
+    where: { organizationId: org!.id, user: { active: true } },
+    distinct: ["userId"],
+    select: { userId: true },
+  });
+
+  const original = org!.subscription!;
+  const email = `quota-${Date.now()}@escolademo.local`;
+
+  await db.subscription.update({
+    where: { organizationId: org!.id },
+    data: {
+      plan: "STARTER",
+      status: "ACTIVE",
+      seats: memberships.length,
+    },
+  });
+
+  try {
+    await loginAsAdmin(page);
+
+    await page.goto("/dashboard/plano");
+    await expect(page.getByRole("heading", { name: "Starter" })).toBeVisible();
+    await expect(page.getByText("Alunos ativos", { exact: true })).toBeVisible();
+
+    await page.goto("/dashboard/professores");
+    await page.locator('input[name="name"]').fill("Professor Limite E2E");
+    await page.locator('input[name="email"]').fill(email);
+    await page.getByRole("button", { name: "Adicionar professor" }).click().catch(() => undefined);
+    await page.waitForTimeout(300);
+
+    const [createdUser, createdMembership] = await Promise.all([
+      db.user.findUnique({ where: { email } }),
+      db.membership.findFirst({
+        where: {
+          organizationId: org!.id,
+          user: { email },
+        },
+      }),
+    ]);
+
+    expect(createdUser).toBeNull();
+    expect(createdMembership).toBeNull();
+  } finally {
+    await db.subscription.update({
+      where: { organizationId: org!.id },
+      data: {
+        plan: original.plan,
+        status: original.status,
+        seats: original.seats,
+        trialEndsAt: original.trialEndsAt,
+        currentPeriodEnd: original.currentPeriodEnd,
+      },
+    });
   }
 });
 
