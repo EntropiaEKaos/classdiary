@@ -23,6 +23,20 @@ type PreapprovalResponse = {
   init_point?: string;
   status?: string;
   external_reference?: string;
+  next_payment_date?: string;
+};
+
+type AuthorizedPaymentResponse = {
+  id?: number | string;
+  preapproval_id?: string;
+  external_reference?: string;
+  status?: string;
+  summarized?: string;
+  payment?: {
+    id?: number | string;
+    status?: string;
+    status_detail?: string;
+  };
 };
 
 function parsePositiveAmount(value: string | undefined, name: string) {
@@ -117,17 +131,32 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     };
   }
 
-  async verifyWebhook(
-    body: string,
-    headers: Headers,
-    context: WebhookContext,
-  ): Promise<BillingWebhookEvent> {
+  private async fetchPreapproval(id: string) {
+    const response = await this.fetcher(
+      `https://api.mercadopago.com/preapproval/${encodeURIComponent(id)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${this.config.accessToken}`,
+          "Content-Type": "application/json",
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Não foi possível consultar a assinatura no Mercado Pago (${response.status}).`,
+      );
+    }
+
+    return (await response.json()) as PreapprovalResponse;
+  }
+
+  private assertSignature(headers: Headers, dataId: string) {
     const xSignature = headers.get("x-signature");
     const xRequestId = headers.get("x-request-id");
-    const dataId = context.dataId?.trim();
 
-    if (!xSignature || !xRequestId || !dataId) {
-      throw new Error("Webhook Mercado Pago sem assinatura, request id ou data.id.");
+    if (!xSignature || !xRequestId) {
+      throw new Error("Webhook Mercado Pago sem assinatura ou request id.");
     }
 
     const parts = new Map(
@@ -142,9 +171,8 @@ export class MercadoPagoBillingProvider implements BillingProvider {
       throw new Error("Assinatura Mercado Pago inválida.");
     }
 
-    const normalizedDataId = dataId.toLowerCase();
     const manifest =
-      `id:${normalizedDataId};request-id:${xRequestId};ts:${ts};`;
+      `id:${dataId.toLowerCase()};request-id:${xRequestId};ts:${ts};`;
     const expected = createHmac("sha256", this.config.webhookSecret)
       .update(manifest)
       .digest("hex");
@@ -158,6 +186,55 @@ export class MercadoPagoBillingProvider implements BillingProvider {
       throw new Error("Assinatura Mercado Pago não confere.");
     }
 
+    return xRequestId;
+  }
+
+  async reconcileSubscription(input: {
+    providerSubscriptionId: string;
+    externalReference: string;
+  }): Promise<BillingWebhookEvent> {
+    const resource = await this.fetchPreapproval(input.providerSubscriptionId);
+
+    if (
+      resource.external_reference &&
+      resource.external_reference !== input.externalReference
+    ) {
+      throw new Error("Referência externa da assinatura não confere.");
+    }
+
+    const status = resource.status?.toLowerCase();
+    let type: BillingWebhookEvent["type"] = "NOOP";
+    if (status === "authorized") type = "CHECKOUT_APPROVED";
+    if (status === "canceled") type = "SUBSCRIPTION_CANCELED";
+
+    return {
+      provider: "MERCADO_PAGO",
+      providerEventId:
+        `mp:reconcile:${input.providerSubscriptionId}:${status ?? "unknown"}:${resource.next_payment_date ?? "none"}`,
+      type,
+      externalReference: input.externalReference,
+      providerSubscriptionId: input.providerSubscriptionId,
+      periodEnd: resource.next_payment_date ?? null,
+      payload: {
+        source: "reconciliation",
+        resourceId: input.providerSubscriptionId,
+        resourceStatus: resource.status ?? null,
+      },
+    };
+  }
+
+  async verifyWebhook(
+    body: string,
+    headers: Headers,
+    context: WebhookContext,
+  ): Promise<BillingWebhookEvent> {
+    const dataId = context.dataId?.trim();
+    if (!dataId) {
+      throw new Error("Webhook Mercado Pago sem data.id.");
+    }
+
+    const xRequestId = this.assertSignature(headers, dataId);
+
     let notification: { type?: string; action?: string; id?: string } = {};
     try {
       notification = JSON.parse(body) as typeof notification;
@@ -165,57 +242,89 @@ export class MercadoPagoBillingProvider implements BillingProvider {
       throw new Error("Payload Mercado Pago inválido.");
     }
 
-    if (
-      context.topic &&
-      context.topic !== "subscription_preapproval" &&
-      notification.type !== "subscription_preapproval"
-    ) {
-      throw new Error("Tópico Mercado Pago ainda não suportado neste endpoint.");
-    }
+    const topic = context.topic ?? notification.type ?? null;
 
-    const resourceResponse = await this.fetcher(
-      `https://api.mercadopago.com/preapproval/${encodeURIComponent(dataId)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${this.config.accessToken}`,
-          "Content-Type": "application/json",
+    if (topic === "subscription_preapproval") {
+      const resource = await this.fetchPreapproval(dataId);
+      if (!resource.external_reference) {
+        throw new Error("Assinatura Mercado Pago sem external_reference.");
+      }
+
+      const status = resource.status?.toLowerCase();
+      let type: BillingWebhookEvent["type"] = "NOOP";
+      if (status === "authorized") type = "CHECKOUT_APPROVED";
+      if (status === "canceled") type = "SUBSCRIPTION_CANCELED";
+
+      return {
+        provider: "MERCADO_PAGO",
+        providerEventId:
+          `mp:${notification.id ?? xRequestId}:${notification.action ?? status ?? "unknown"}:${dataId}`,
+        type,
+        externalReference: resource.external_reference,
+        providerSubscriptionId: resource.id ?? dataId,
+        periodEnd: resource.next_payment_date ?? null,
+        payload: {
+          topic,
+          action: notification.action ?? null,
+          resourceId: dataId,
+          resourceStatus: resource.status ?? null,
         },
-      },
-    );
+      };
+    }
 
-    if (!resourceResponse.ok) {
-      throw new Error(
-        `Não foi possível consultar a assinatura no Mercado Pago (${resourceResponse.status}).`,
+    if (topic === "subscription_authorized_payment") {
+      const invoiceResponse = await this.fetcher(
+        `https://api.mercadopago.com/authorized_payments/${encodeURIComponent(dataId)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.config.accessToken}`,
+            "Content-Type": "application/json",
+          },
+        },
       );
+
+      if (!invoiceResponse.ok) {
+        throw new Error(
+          `Não foi possível consultar a fatura no Mercado Pago (${invoiceResponse.status}).`,
+        );
+      }
+
+      const invoice = (await invoiceResponse.json()) as AuthorizedPaymentResponse;
+      if (!invoice.external_reference) {
+        throw new Error("Fatura Mercado Pago sem external_reference.");
+      }
+
+      let preapproval: PreapprovalResponse | null = null;
+      if (invoice.preapproval_id) {
+        preapproval = await this.fetchPreapproval(invoice.preapproval_id);
+      }
+
+      const paymentStatus = invoice.payment?.status?.toLowerCase();
+      let type: BillingWebhookEvent["type"] = "NOOP";
+      if (paymentStatus === "approved") type = "PAYMENT_RENEWED";
+      if (paymentStatus === "rejected") type = "PAYMENT_FAILED";
+
+      return {
+        provider: "MERCADO_PAGO",
+        providerEventId:
+          `mp:authorized-payment:${invoice.id ?? dataId}:${paymentStatus ?? invoice.status ?? "unknown"}`,
+        type,
+        externalReference: invoice.external_reference,
+        providerSubscriptionId: invoice.preapproval_id ?? null,
+        periodEnd: preapproval?.next_payment_date ?? null,
+        payload: {
+          topic,
+          action: notification.action ?? null,
+          authorizedPaymentId: invoice.id ?? dataId,
+          paymentId: invoice.payment?.id ?? null,
+          paymentStatus: invoice.payment?.status ?? null,
+          paymentStatusDetail: invoice.payment?.status_detail ?? null,
+          invoiceStatus: invoice.status ?? null,
+          summarized: invoice.summarized ?? null,
+        },
+      };
     }
 
-    const resource = (await resourceResponse.json()) as PreapprovalResponse;
-    if (!resource.external_reference) {
-      throw new Error("Assinatura Mercado Pago sem external_reference.");
-    }
-
-    const status = resource.status?.toLowerCase();
-    let type: BillingWebhookEvent["type"];
-    if (status === "authorized") {
-      type = "CHECKOUT_APPROVED";
-    } else if (status === "canceled") {
-      type = "SUBSCRIPTION_CANCELED";
-    } else {
-      type = "NOOP";
-    }
-
-    return {
-      provider: "MERCADO_PAGO",
-      providerEventId:
-        `mp:${notification.id ?? xRequestId}:${notification.action ?? status ?? "unknown"}:${dataId}`,
-      type,
-      externalReference: resource.external_reference,
-      payload: {
-        topic: context.topic ?? notification.type ?? null,
-        action: notification.action ?? null,
-        resourceId: dataId,
-        resourceStatus: resource.status ?? null,
-      },
-    };
+    throw new Error("Tópico Mercado Pago ainda não suportado neste endpoint.");
   }
 }
