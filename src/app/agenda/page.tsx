@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { activeOrganization, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
@@ -120,6 +121,10 @@ export default async function Page() {
     <main className="main">
       <div className="page-head">
         <div>
+          <Link className="page-back-button" href="/dashboard">
+            <ArrowLeft size={16} />
+            Voltar ao dashboard
+          </Link>
           <span className="badge">Agenda</span>
           <h1>Minha rotina acadêmica</h1>
           <div className="muted">{org.name}</div>
