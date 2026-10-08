@@ -6,12 +6,12 @@ import { recordPayment } from "../src/lib/payment-service";
 async function loginAsAdmin(page: Page) {
   await page.goto("/login");
   await page.getByLabel("E-mail").fill(
-    process.env.SEED_OWNER_EMAIL ?? "admin@classdiary.local",
+    process.env.SEED_OWNER_EMAIL ?? "admin@edusync.local",
   );
   await page.getByLabel("Senha").fill(
     process.env.SEED_OWNER_PASSWORD ?? "ChangeMe123!",
   );
-  await page.getByRole("button", { name: "Entrar no ClassDiary" }).click();
+  await page.getByRole("button", { name: "Entrar no EduSync" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 }
 
@@ -129,9 +129,9 @@ test("self-service owner signup provisions a Pro trial tenant", async ({ page })
 
 test("invalid login is rejected without account disclosure", async ({ page }) => {
   await page.goto("/login");
-  await page.getByLabel("E-mail").fill("naoexiste@classdiary.local");
+  await page.getByLabel("E-mail").fill("naoexiste@edusync.local");
   await page.getByLabel("Senha").fill("WrongPassword123!");
-  await page.getByRole("button", { name: "Entrar no ClassDiary" }).click();
+  await page.getByRole("button", { name: "Entrar no EduSync" }).click();
 
   await expect(page).toHaveURL(/\/login\?error=invalid/);
   await expect(page.getByText("E-mail ou senha inválidos.")).toBeVisible();
@@ -343,7 +343,7 @@ test("concurrent duplicate payment is idempotent by external reference", async (
     db.organization.findUnique({ where: { slug: "escola-demo" } }),
     db.user.findUnique({
       where: {
-        email: process.env.SEED_OWNER_EMAIL ?? "admin@classdiary.local",
+        email: process.env.SEED_OWNER_EMAIL ?? "admin@edusync.local",
       },
     }),
   ]);
@@ -642,12 +642,12 @@ test("server action rejects a forged cross-origin login mutation", async ({ page
 
   await page.goto("/login");
   await page.getByLabel("E-mail").fill(
-    process.env.SEED_OWNER_EMAIL ?? "admin@classdiary.local",
+    process.env.SEED_OWNER_EMAIL ?? "admin@edusync.local",
   );
   await page.getByLabel("Senha").fill(
     process.env.SEED_OWNER_PASSWORD ?? "ChangeMe123!",
   );
-  await page.getByRole("button", { name: "Entrar no ClassDiary" }).click().catch(() => undefined);
+  await page.getByRole("button", { name: "Entrar no EduSync" }).click().catch(() => undefined);
   await page.waitForTimeout(300);
 
   expect(rejectedStatus).not.toBeNull();

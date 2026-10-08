@@ -1,6 +1,6 @@
-# ClassDiary — Runbook de release, backup e recuperação
+# EduSync — Runbook de release, backup e recuperação
 
-Este documento descreve o procedimento operacional mínimo antes de publicar uma versão do ClassDiary. Ele complementa o painel `/dashboard/readiness` e não substitui políticas internas, revisão jurídica ou procedimentos do provedor de infraestrutura.
+Este documento descreve o procedimento operacional mínimo antes de publicar uma versão do EduSync. Ele complementa o painel `/dashboard/readiness` e não substitui políticas internas, revisão jurídica ou procedimentos do provedor de infraestrutura.
 
 ## 1. Gate de release
 
@@ -25,7 +25,7 @@ pg_dump "$DATABASE_URL" \
   --format=custom \
   --no-owner \
   --no-privileges \
-  --file="classdiary-$(date +%Y%m%d-%H%M).dump"
+  --file="edusync-$(date +%Y%m%d-%H%M).dump"
 ```
 
 Depois de gerar o backup:
@@ -40,12 +40,12 @@ Depois de gerar o backup:
 Execute restore apenas em banco isolado de teste/staging.
 
 ```bash
-createdb classdiary_restore_test
+createdb edusync_restore_test
 pg_restore \
   --no-owner \
   --no-privileges \
-  --dbname="postgresql://.../classdiary_restore_test" \
-  classdiary-YYYYMMDD-HHMM.dump
+  --dbname="postgresql://.../edusync_restore_test" \
+  edusync-YYYYMMDD-HHMM.dump
 ```
 
 Depois:
@@ -102,7 +102,7 @@ Antes de publicação, confirme:
 - dados exportados com `Cache-Control: private, no-store`;
 - nenhuma credencial ou segredo incluído no export.
 
-As regras de retenção configuradas no ClassDiary são controles internos e devem refletir as obrigações aplicáveis à organização responsável pelo tratamento.
+As regras de retenção configuradas no EduSync são controles internos e devem refletir as obrigações aplicáveis à organização responsável pelo tratamento.
 
 ## 8. Rollback
 

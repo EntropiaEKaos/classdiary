@@ -18,7 +18,7 @@ export default async function PlansAdminPage() {
       <AdminPageHeader
         eyebrow="Comercial"
         title="Planos & cobrança"
-        description="Limites efetivos usados pelo motor de capacidade do ClassDiary."
+        description="Limites efetivos usados pelo motor de capacidade do EduSync."
       />
 
       <div className="admin-plan-grid">

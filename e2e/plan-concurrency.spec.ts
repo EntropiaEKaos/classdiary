@@ -10,7 +10,7 @@ test("plan downgrade racing class creation never leaves tenant over Starter limi
   });
   const actor = await db.user.findUnique({
     where: {
-      email: process.env.SEED_OWNER_EMAIL ?? "admin@classdiary.local",
+      email: process.env.SEED_OWNER_EMAIL ?? "admin@edusync.local",
     },
   });
   const year = await db.schoolYear.findFirst({

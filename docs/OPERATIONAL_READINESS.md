@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Este documento define a preparação mínima antes de promover o ClassDiary para produção.
+Este documento define a preparação mínima antes de promover o EduSync para produção.
 
 ## Backup
 
@@ -41,7 +41,7 @@ O teste deve confirmar:
 6. consistência de relações Prisma;
 7. RTO observado;
 8. RPO observado;
-9. registro do resultado no ClassDiary.
+9. registro do resultado no EduSync.
 
 Nunca executar restore drill diretamente sobre o banco de produção.
 

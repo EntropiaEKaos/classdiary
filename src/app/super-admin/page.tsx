@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 export default async function SuperAdminPage() {
   const [schools, totalUsers, totalStudents, activeTrials, activeSubscriptions, settings] =
     await Promise.all([
-      db.organization.count({ where: { slug: { not: "classdiary-platform" } } }),
+      db.organization.count({ where: { slug: { not: "edusync-platform" } } }),
       db.user.count(),
       db.student.count(),
       db.subscription.count({ where: { status: "TRIAL" } }),
@@ -36,7 +36,7 @@ export default async function SuperAdminPage() {
   return (
     <main className="admin-page">
       <AdminPageHeader
-        eyebrow="ClassDiary SaaS"
+        eyebrow="EduSync SaaS"
         title="Admin Center"
         description="Controle global da plataforma, clientes, segurança e operação."
         backHref="/dashboard"

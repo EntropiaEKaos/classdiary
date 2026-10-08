@@ -25,7 +25,7 @@ export default async function Login({
           <span className="logo">
             <BookOpenCheck size={20} />
           </span>
-          ClassDiary
+          EduSync
         </Link>
 
         <div>
@@ -60,7 +60,7 @@ export default async function Login({
           </label>
 
           <button className="btn btn-primary" type="submit">
-            Entrar no ClassDiary
+            Entrar no EduSync
           </button>
         </form>
       </section>

@@ -19,7 +19,7 @@ export async function createSchoolAction(fd:FormData){
   });
 
   const alreadyOwnsSchool=await db.membership.findFirst({
-    where:{userId:u.id,role:"SCHOOL_ADMIN",organization:{slug:{not:"classdiary-platform"}}}
+    where:{userId:u.id,role:"SCHOOL_ADMIN",organization:{slug:{not:"edusync-platform"}}}
   });
   if(alreadyOwnsSchool) redirect("/dashboard");
 

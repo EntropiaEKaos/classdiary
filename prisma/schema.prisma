@@ -2522,7 +2522,7 @@ model LoginThrottle {
 
 model PlatformSettings {
   id                  String   @id @default("platform")
-  siteName            String   @default("ClassDiary")
+  siteName            String   @default("EduSync")
   heroBadge           String   @default("Diário de classe 100% online")
   heroTitle           String   @default("A escola inteira em um só lugar.")
   heroSubtitle        String   @default("Presença, notas, aulas, alunos, professores, comunicados e gestão escolar em uma plataforma SaaS moderna.")

@@ -39,7 +39,7 @@ export default async function ProfilePage() {
         <section className="table-card">
           <div className="section-icon-title">
             <Settings2 size={20}/>
-            <div><strong>Preferências</strong><span>Personalize a experiência do ClassDiary.</span></div>
+            <div><strong>Preferências</strong><span>Personalize a experiência do EduSync.</span></div>
           </div>
           <div className="preference-theme-row">
             <span><strong>Aparência</strong><small>Claro ou noturno</small></span>

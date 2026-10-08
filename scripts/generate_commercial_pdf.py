@@ -6,7 +6,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from pathlib import Path
 
-OUT = Path("docs/ClassDiary_Documentacao_Comercial.pdf")
+OUT = Path("docs/EduSync_Documentacao_Comercial.pdf")
 OUT.parent.mkdir(parents=True, exist_ok=True)
 
 BLUE = colors.HexColor("#17365D")
@@ -39,7 +39,7 @@ def footer(canvas, doc):
     canvas.line(18*mm, 12*mm, 192*mm, 12*mm)
     canvas.setFont("Helvetica", 7)
     canvas.setFillColor(GRAY)
-    canvas.drawString(18*mm, 7.5*mm, "ClassDiary - Documentação Comercial e Funcional")
+    canvas.drawString(18*mm, 7.5*mm, "EduSync - Documentação Comercial e Funcional")
     canvas.drawRightString(192*mm, 7.5*mm, str(doc.page))
     canvas.restoreState()
 
@@ -69,7 +69,7 @@ def module_table(title, rows):
 
 story = [
     Spacer(1, 44*mm),
-    P("ClassDiary", "CDTitle"),
+    P("EduSync", "CDTitle"),
     P("Plataforma SaaS de Diário de Classe e Gestão Escolar", "CDSubtitle"),
     P("Documentação comercial das funcionalidades implementadas e certificadas no repositório", "CDLead"),
     Spacer(1, 9*mm),
@@ -97,7 +97,7 @@ story += [
 
 story += [
     P("1. Visão geral da solução", "H1x"),
-    P("O ClassDiary é uma plataforma SaaS multi-tenant para escolas, cursos e redes de ensino. O sistema centraliza gestão acadêmica, secretaria, comunicação, financeiro, avaliações, operação escolar, recursos humanos, patrimônio, estoque, transporte, cantina e acompanhamento pedagógico em uma única aplicação web."),
+    P("O EduSync é uma plataforma SaaS multi-tenant para escolas, cursos e redes de ensino. O sistema centraliza gestão acadêmica, secretaria, comunicação, financeiro, avaliações, operação escolar, recursos humanos, patrimônio, estoque, transporte, cantina e acompanhamento pedagógico em uma única aplicação web."),
     P("A arquitetura foi construída para atender múltiplas instituições com isolamento por organização, usuários e papéis, permissões por módulo, portais específicos e trilhas de auditoria. O produto já possui uma base funcional extensa e um ciclo de CI que valida banco, schema, tipagem, lint e build de produção."),
 ]
 call=Table([[P('<b><font color="#1F7A4D">Proposta de valor para venda</font></b><br/>Uma escola pode operar matrícula, rotina pedagógica, provas, comunicação, cobrança, relatórios e diversos serviços internos sem depender de sistemas fragmentados.', "Callout")]], colWidths=[172*mm])
@@ -268,7 +268,7 @@ ct.setStyle(TableStyle([
 ]))
 story += [
     ct,Spacer(1,3*mm),
-    P("Workflow certificado: <b>ClassDiary CI #36651094108</b>. O run foi concluído com status success e head SHA idêntico ao HEAD da main no momento da certificação."),
+    P("Workflow certificado: <b>EduSync CI #36651094108</b>. O run foi concluído com status success e head SHA idêntico ao HEAD da main no momento da certificação."),
     P("Stack tecnológica","H2x"),
 ]
 story += bullets(["Next.js 16.3.6","React 19.2","TypeScript 5.9","PostgreSQL 16 no CI","Prisma ORM 7.10 + adapter-pg","Node.js 22","pdf-lib para documentos e relatórios em PDF","Zod para validação de entrada","bcryptjs para credenciais"])
@@ -314,17 +314,17 @@ story += bullets([
 ])
 story += [
     P("Conclusão","H1x"),
-    P("O ClassDiary já ultrapassou o estágio de um simples diário de classe. A aplicação funciona como uma suíte de gestão escolar completa, com um núcleo acadêmico robusto, secretaria, financeiro, comunicação, provas online, inteligência pedagógica, BI e módulos operacionais. O repositório atual demonstra uma base comercialmente apresentável e tecnicamente validada em CI, pronta para avançar para staging, testes E2E e preparação de implantação."),
+    P("O EduSync já ultrapassou o estágio de um simples diário de classe. A aplicação funciona como uma suíte de gestão escolar completa, com um núcleo acadêmico robusto, secretaria, financeiro, comunicação, provas online, inteligência pedagógica, BI e módulos operacionais. O repositório atual demonstra uma base comercialmente apresentável e tecnicamente validada em CI, pronta para avançar para staging, testes E2E e preparação de implantação."),
     Spacer(1,8*mm),
-    P('<font size="15" color="#17365D"><b>ClassDiary</b></font>',"CDLead"),
+    P('<font size="15" color="#17365D"><b>EduSync</b></font>',"CDLead"),
     P("Gestão escolar integrada, do diário de classe à operação completa.","CDLead"),
 ]
 
 doc = SimpleDocTemplate(
     str(OUT), pagesize=A4,
     rightMargin=18*mm, leftMargin=18*mm, topMargin=17*mm, bottomMargin=18*mm,
-    title="ClassDiary - Documentação Comercial e Funcional",
-    author="ClassDiary",
+    title="EduSync - Documentação Comercial e Funcional",
+    author="EduSync",
 )
 doc.build(story, onFirstPage=footer, onLaterPages=footer)
 print(OUT)

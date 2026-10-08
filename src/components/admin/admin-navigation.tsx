@@ -83,9 +83,9 @@ export function AdminNavigation() {
     <>
       <aside className="admin-center-sidebar">
         <Link className="admin-brand" href="/super-admin">
-          <span className="logo">CD</span>
+          <span className="logo">ES</span>
           <span>
-            <strong>ClassDiary</strong>
+            <strong>EduSync</strong>
             <small>Admin Center</small>
           </span>
         </Link>
@@ -105,8 +105,8 @@ export function AdminNavigation() {
 
       <header className="admin-mobile-topbar">
         <Link className="admin-mobile-brand" href="/super-admin">
-          <span className="logo">CD</span>
-          <span><strong>ClassDiary</strong><small>Admin Center</small></span>
+          <span className="logo">ES</span>
+          <span><strong>EduSync</strong><small>Admin Center</small></span>
         </Link>
         <div className="admin-mobile-actions">
           <ThemeToggle />

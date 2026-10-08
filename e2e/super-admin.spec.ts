@@ -4,12 +4,12 @@ import { db } from "../src/lib/db";
 async function loginAsPlatformOwner(page: Page) {
   await page.goto("/login");
   await page.getByLabel("E-mail").fill(
-    process.env.SEED_OWNER_EMAIL ?? "admin@classdiary.local",
+    process.env.SEED_OWNER_EMAIL ?? "admin@edusync.local",
   );
   await page.getByLabel("Senha").fill(
     process.env.SEED_OWNER_PASSWORD ?? "ChangeMe123!",
   );
-  await page.getByRole("button", { name: "Entrar no ClassDiary" }).click();
+  await page.getByRole("button", { name: "Entrar no EduSync" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 }
 
@@ -43,7 +43,7 @@ test("platform settings persist and control the public site", async ({ page }) =
   });
   expect(original).not.toBeNull();
 
-  const title = `ClassDiary Admin Center E2E ${Date.now()}`;
+  const title = `EduSync Admin Center E2E ${Date.now()}`;
 
   try {
     await loginAsPlatformOwner(page);

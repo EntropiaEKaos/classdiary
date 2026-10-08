@@ -1,4 +1,4 @@
-# ClassDiary
+# EduSync
 
 SaaS multi-tenant de diário de classe e gestão escolar online para escolas, cursos e redes de ensino.
 
@@ -40,7 +40,7 @@ SaaS multi-tenant de diário de classe e gestão escolar online para escolas, cu
 
 ## Documentação comercial
 
-- [PDF comercial - funcionalidades implementadas](docs/ClassDiary_Documentacao_Comercial.pdf)
+- [PDF comercial - funcionalidades implementadas](docs/EduSync_Documentacao_Comercial.pdf)
 - O PDF é regenerável pelo workflow `Generate Commercial PDF` a partir de `scripts/generate_commercial_pdf.py`.
 
 ## Desenvolvimento
@@ -98,7 +98,7 @@ Configuração:
 - `DATABASE_URL`, `ADMIN_BOOTSTRAP_TOKEN` e `NEXT_PUBLIC_APP_URL` configuradas por ambiente
 - validar `/api/health` antes de promover qualquer preview
 
-O projeto ClassDiary deve permanecer independente de outros projetos Vercel.
+O projeto EduSync deve permanecer independente de outros projetos Vercel.
 
 ## CI
 

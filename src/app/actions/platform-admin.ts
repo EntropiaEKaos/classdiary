@@ -115,7 +115,7 @@ export async function openSupportViewAction(fd: FormData) {
   const organizationId = z.string().min(1).parse(String(fd.get("organizationId") ?? ""));
 
   const organization = await db.organization.findFirst({
-    where: { id: organizationId, slug: { not: "classdiary-platform" } },
+    where: { id: organizationId, slug: { not: "edusync-platform" } },
     select: { id: true, name: true },
   });
 

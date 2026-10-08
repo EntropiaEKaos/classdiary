@@ -134,7 +134,7 @@ export async function GET(
     headers: {
       "Cache-Control": "private, no-store",
       "Content-Disposition":
-        `attachment; filename="classdiary-dados-${safeRegistration}.json"`,
+        `attachment; filename="edusync-dados-${safeRegistration}.json"`,
     },
   });
 }

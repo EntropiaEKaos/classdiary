@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function SchoolsAdminPage() {
   const organizations = await db.organization.findMany({
-    where: { slug: { not: "classdiary-platform" } },
+    where: { slug: { not: "edusync-platform" } },
     include: {
       subscription: true,
       memberships: { where: { user: { active: true } }, select: { userId: true } },

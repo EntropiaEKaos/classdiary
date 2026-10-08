@@ -6,7 +6,7 @@ async function login(page: Page, email: string, expectedPath = "/dashboard") {
   await page.goto("/login");
   await page.getByLabel("E-mail").fill(email);
   await page.getByLabel("Senha").fill(rolePassword);
-  await page.getByRole("button", { name: "Entrar no ClassDiary" }).click();
+  await page.getByRole("button", { name: "Entrar no EduSync" }).click();
   await expect(page).toHaveURL(new RegExp(expectedPath.replaceAll("/", "\\/") + "$"));
 }
 

@@ -3,12 +3,12 @@ import { expect, Page, test } from "@playwright/test";
 async function login(page: Page) {
   await page.goto("/login");
   await page.getByLabel("E-mail").fill(
-    process.env.SEED_OWNER_EMAIL ?? "admin@classdiary.local",
+    process.env.SEED_OWNER_EMAIL ?? "admin@edusync.local",
   );
   await page.getByLabel("Senha").fill(
     process.env.SEED_OWNER_PASSWORD ?? "ChangeMe123!",
   );
-  await page.getByRole("button", { name: "Entrar no ClassDiary" }).click();
+  await page.getByRole("button", { name: "Entrar no EduSync" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 }
 
@@ -39,12 +39,12 @@ test("PWA metadata and service worker are available", async ({ request }) => {
   const manifest = await request.get("/manifest.webmanifest");
   expect(manifest.ok()).toBeTruthy();
   const data = await manifest.json();
-  expect(data.name).toBe("ClassDiary");
+  expect(data.name).toBe("EduSync");
   expect(data.display).toBe("standalone");
 
   const sw = await request.get("/sw.js");
   expect(sw.ok()).toBeTruthy();
-  expect(await sw.text()).toContain("classdiary-shell-v1");
+  expect(await sw.text()).toContain("edusync-shell-v1");
 });
 
 test("critical mobile routes avoid horizontal overflow", async ({ page }) => {

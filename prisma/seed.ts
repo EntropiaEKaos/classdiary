@@ -13,16 +13,16 @@ const db = new PrismaClient({
 });
 
 async function main() {
-  const ownerEmail = process.env.SEED_OWNER_EMAIL ?? "admin@classdiary.local";
+  const ownerEmail = process.env.SEED_OWNER_EMAIL ?? "admin@edusync.local";
   const ownerPassword = process.env.SEED_OWNER_PASSWORD ?? "ChangeMe123!";
   const passwordHash = await hash(ownerPassword, 12);
 
   const platform = await db.organization.upsert({
-    where: { slug: "classdiary-platform" },
+    where: { slug: "edusync-platform" },
     update: { active: true },
     create: {
-      name: "ClassDiary Platform",
-      slug: "classdiary-platform",
+      name: "EduSync Platform",
+      slug: "edusync-platform",
       active: true,
       subscription: { create: { plan: "INTERNAL", status: "ACTIVE", seats: 5 } },
     },
@@ -30,9 +30,9 @@ async function main() {
 
   const owner = await db.user.upsert({
     where: { email: ownerEmail },
-    update: { name: "Administrador ClassDiary", passwordHash, active: true },
+    update: { name: "Administrador EduSync", passwordHash, active: true },
     create: {
-      name: "Administrador ClassDiary",
+      name: "Administrador EduSync",
       email: ownerEmail,
       passwordHash,
       active: true,
@@ -59,7 +59,7 @@ async function main() {
     where: { slug: "escola-demo" },
     update: { active: true },
     create: {
-      name: "Escola Demo ClassDiary",
+      name: "Escola Demo EduSync",
       slug: "escola-demo",
       email: "contato@escolademo.local",
       active: true,

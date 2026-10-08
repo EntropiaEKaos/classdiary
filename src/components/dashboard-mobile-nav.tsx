@@ -43,7 +43,7 @@ export function DashboardMobileNav({ items }: { items: MobileItem[] }) {
           <aside className="dashboard-mobile-drawer" aria-label="Navegação móvel da escola">
             <div className="dashboard-mobile-drawer-head">
               <div>
-                <strong>ClassDiary</strong>
+                <strong>EduSync</strong>
                 <span>Navegação da escola</span>
               </div>
               <button

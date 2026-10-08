@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "ClassDiary",
-    short_name: "ClassDiary",
+    name: "EduSync",
+    short_name: "EduSync",
     description: "Gestão escolar, diário de classe e comunicação em uma única plataforma.",
     start_url: "/dashboard/meu-dia",
     display: "standalone",
