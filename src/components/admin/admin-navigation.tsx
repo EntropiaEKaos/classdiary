@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   Activity,
   Building2,
@@ -95,6 +96,7 @@ export function AdminNavigation() {
           <span className="admin-nav-icon"><Home size={18} /></span>
           <span>Abrir dashboard</span>
         </Link>
+        <div className="admin-theme-slot"><ThemeToggle showLabel /></div>
         <div className="admin-sidebar-foot">
           <span className="admin-sidebar-dot" />
           <span>Central administrativa</span>
@@ -106,7 +108,9 @@ export function AdminNavigation() {
           <span className="logo">CD</span>
           <span><strong>ClassDiary</strong><small>Admin Center</small></span>
         </Link>
-        <button
+        <div className="admin-mobile-actions">
+          <ThemeToggle />
+          <button
           aria-expanded={open}
           aria-label="Abrir menu do Admin Center"
           className="admin-menu-button"
@@ -115,6 +119,7 @@ export function AdminNavigation() {
         >
           <Menu size={22} />
         </button>
+        </div>
       </header>
 
       {open ? (

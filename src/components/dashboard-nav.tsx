@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { activeOrganization, requireUser } from "@/lib/auth";
 import { getAllowedModules, type SchoolRole } from "@/lib/rbac";
+import { DashboardMobileNav } from "@/components/dashboard-mobile-nav";
 
 type NavItem = {
   href: string;
@@ -144,7 +145,8 @@ export async function DashboardNav() {
   });
 
   return (
-    <aside className="sidebar">
+    <>
+      <aside className="sidebar">
       <Link href="/" className="brand">
         <span className="logo">
           <BookOpenCheck size={20} />
@@ -158,6 +160,8 @@ export async function DashboardNav() {
           {label}
         </Link>
       ))}
-    </aside>
+      </aside>
+      <DashboardMobileNav items={visibleItems.map(({ href, label }) => ({ href, label }))} />
+    </>
   );
 }
