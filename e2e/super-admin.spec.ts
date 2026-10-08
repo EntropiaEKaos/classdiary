@@ -95,7 +95,7 @@ test("mobile Admin Center exposes menu, quick navigation and responsive actions"
   await expect(page.getByRole("navigation", { name: "Menu do Admin Center", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Segurança & auditoria" })).toBeVisible();
 
-  await page.getByLabel("Fechar menu").first().click();
+  await page.getByLabel("Fechar menu do Admin Center").click();
   await expect(page.locator(".admin-mobile-drawer")).toHaveCount(0);
 
   const savePlan = page.getByRole("button", { name: "Salvar plano" }).first();
