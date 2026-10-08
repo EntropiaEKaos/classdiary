@@ -39,11 +39,11 @@ function isCurrent(pathname: string, href: string, exact?: boolean) {
   return exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function NavigationLinks({ onNavigate }: { onNavigate?: () => void }) {
+function NavigationLinks({ onNavigate, label }: { onNavigate?: () => void; label: string }) {
   const pathname = usePathname();
 
   return (
-    <nav className="admin-center-nav" aria-label="Admin Center">
+    <nav className="admin-center-nav" aria-label={label}>
       {items.map((item) => {
         const Icon = item.icon;
         const active = isCurrent(pathname, item.href, item.exact);
@@ -89,7 +89,7 @@ export function AdminNavigation() {
           </span>
         </Link>
         <div className="admin-caption">Plataforma</div>
-        <NavigationLinks />
+        <NavigationLinks label="Navegação principal do Admin Center" />
         <div className="admin-caption">Ambiente escolar</div>
         <Link className="admin-center-link" href="/dashboard">
           <span className="admin-nav-icon"><Home size={18} /></span>
@@ -135,7 +135,7 @@ export function AdminNavigation() {
                 <X size={21} />
               </button>
             </div>
-            <NavigationLinks onNavigate={() => setOpen(false)} />
+            <NavigationLinks label="Menu do Admin Center" onNavigate={() => setOpen(false)} />
             <Link className="admin-center-link admin-dashboard-link" href="/dashboard" onClick={() => setOpen(false)}>
               <span className="admin-nav-icon"><Home size={18} /></span>
               <span>Abrir dashboard escolar</span>
