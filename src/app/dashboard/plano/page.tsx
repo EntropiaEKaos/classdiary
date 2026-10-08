@@ -100,7 +100,7 @@ export default async function PlanPage() {
       <section className="table-card" style={{ marginTop: 20 }}>
         <h3>Como os limites funcionam</h3>
         <p className="muted">
-          O ClassDiary bloqueia novas inclusões antes de ultrapassar a capacidade contratada,
+          O EduSync bloqueia novas inclusões antes de ultrapassar a capacidade contratada,
           sem remover ou esconder dados existentes. Upgrade de plano preserva todo o histórico.
         </p>
       </section>

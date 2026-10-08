@@ -4,7 +4,7 @@ const status = (value?: string) => value ? "Configurado" : "Não configurado";
 
 const integrations = [
   ["PostgreSQL", process.env.DATABASE_URL, "Banco principal da aplicação"],
-  ["URL pública", process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL, "Endereço canônico do ClassDiary"],
+  ["URL pública", process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL, "Endereço canônico do EduSync"],
   ["Mercado Pago", process.env.MERCADO_PAGO_ACCESS_TOKEN, "Assinaturas e cobrança"],
   ["Webhook Mercado Pago", process.env.MERCADO_PAGO_WEBHOOK_SECRET, "Validação de eventos de cobrança"],
   ["Bootstrap administrativo", process.env.ADMIN_BOOTSTRAP_TOKEN, "Operações administrativas protegidas"],

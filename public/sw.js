@@ -1,4 +1,4 @@
-const CACHE = "classdiary-shell-v1";
+const CACHE = "edusync-shell-v1";
 const SHELL = ["/", "/login", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {

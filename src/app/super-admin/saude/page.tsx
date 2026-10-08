@@ -16,7 +16,7 @@ export default async function HealthAdminPage() {
   }
 
   const [schools, users, sessions] = await Promise.all([
-    db.organization.count({ where: { active: true, slug: { not: "classdiary-platform" } } }),
+    db.organization.count({ where: { active: true, slug: { not: "edusync-platform" } } }),
     db.user.count({ where: { active: true } }),
     db.session.count(),
   ]);
