@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePlatformOwner } from "@/lib/auth";
@@ -105,4 +106,31 @@ export async function togglePlatformUserAction(fd: FormData) {
   });
 
   revalidatePath("/super-admin/usuarios");
+}
+
+
+export async function openSupportViewAction(fd: FormData) {
+  await assertTrustedMutationOrigin();
+  const actor = await requirePlatformOwner();
+  const organizationId = z.string().min(1).parse(String(fd.get("organizationId") ?? ""));
+
+  const organization = await db.organization.findFirst({
+    where: { id: organizationId, slug: { not: "classdiary-platform" } },
+    select: { id: true, name: true },
+  });
+
+  if (!organization) throw new Error("Escola não encontrada.");
+
+  await db.auditLog.create({
+    data: {
+      userId: actor.id,
+      organizationId: organization.id,
+      action: "OPEN_SUPPORT_VIEW",
+      entity: "Organization",
+      entityId: organization.id,
+      metadata: { mode: "READ_ONLY", schoolName: organization.name },
+    },
+  });
+
+  redirect("/super-admin/escolas/" + organization.id + "/suporte");
 }

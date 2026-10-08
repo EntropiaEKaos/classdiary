@@ -214,6 +214,7 @@ model User {
   examReviewsCreated ExamReviewRequest[] @relation("ExamReviewCreator")
   examReviewsReviewed ExamReviewRequest[] @relation("ExamReviewReviewer")
   auditLogs   AuditLog[]
+  preference  UserPreference?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
@@ -2164,6 +2165,7 @@ model Message {
   conversationId String
   senderId       String
   body           String
+  attachmentUrl  String?
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
@@ -2532,4 +2534,15 @@ model PlatformSettings {
   updatedById         String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+}
+
+
+model UserPreference {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  inAppNotifications Boolean  @default(true)
+  compactMode        Boolean  @default(false)
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }

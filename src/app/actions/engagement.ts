@@ -7,6 +7,18 @@ import { activeOrganization, requireUser } from "@/lib/auth";
 import { requireSchoolRole } from "@/lib/rbac";
 import { assertTrustedMutationOrigin } from "@/lib/security";
 
+function safeAttachmentUrl(value?: string) {
+  if (!value) return null;
+  const url = new URL(value);
+  if (
+    url.protocol !== "https:" &&
+    !(process.env.NODE_ENV !== "production" && url.protocol === "http:")
+  ) {
+    throw new Error("O anexo deve usar HTTPS.");
+  }
+  return url.toString();
+}
+
 async function notify(
   organizationId: string,
   userId: string,
@@ -14,6 +26,9 @@ async function notify(
   body: string,
   href?: string,
 ) {
+  const preference = await db.userPreference.findUnique({ where: { userId } });
+  if (preference && !preference.inAppNotifications) return;
+
   await db.notification.create({
     data: {
       organizationId,
@@ -36,10 +51,12 @@ export async function createConversationAction(fd: FormData) {
     recipientId: z.string().min(1),
     subject: z.string().min(2).max(120),
     body: z.string().min(1).max(5000),
+    attachmentUrl: z.string().optional(),
   }).parse({
     recipientId: String(fd.get("recipientId") ?? ""),
     subject: String(fd.get("subject") ?? "").trim(),
     body: String(fd.get("body") ?? "").trim(),
+    attachmentUrl: String(fd.get("attachmentUrl") ?? "").trim(),
   });
 
   const recipient = await db.membership.findFirst({
@@ -58,7 +75,7 @@ export async function createConversationAction(fd: FormData) {
         ],
       },
       messages: {
-        create: { senderId: user.id, body: p.body },
+        create: { senderId: user.id, body: p.body, attachmentUrl: safeAttachmentUrl(p.attachmentUrl) },
       },
     },
   });
@@ -83,9 +100,11 @@ export async function replyConversationAction(fd: FormData) {
   const p = z.object({
     conversationId: z.string().min(1),
     body: z.string().min(1).max(5000),
+    attachmentUrl: z.string().optional(),
   }).parse({
     conversationId: String(fd.get("conversationId") ?? ""),
     body: String(fd.get("body") ?? "").trim(),
+    attachmentUrl: String(fd.get("attachmentUrl") ?? "").trim(),
   });
 
   const conversation = await db.conversation.findFirst({
@@ -103,6 +122,7 @@ export async function replyConversationAction(fd: FormData) {
       conversationId: conversation.id,
       senderId: user.id,
       body: p.body,
+      attachmentUrl: safeAttachmentUrl(p.attachmentUrl),
     },
   });
 
@@ -138,6 +158,22 @@ export async function markNotificationReadAction(fd: FormData) {
   });
 
   revalidatePath("/notificacoes");
+  revalidatePath("/dashboard");
+}
+
+export async function markAllNotificationsReadAction() {
+  await assertTrustedMutationOrigin();
+  const user = await requireUser();
+  const org = await activeOrganization();
+  if (!org) throw new Error("Nenhuma escola ativa.");
+
+  await db.notification.updateMany({
+    where: { organizationId: org.id, userId: user.id, readAt: null },
+    data: { readAt: new Date() },
+  });
+
+  revalidatePath("/notificacoes");
+  revalidatePath("/dashboard");
 }
 
 export async function createAbsenceJustificationAction(fd: FormData) {

@@ -1,4 +1,5 @@
 import { toggleOrganizationAction, updateSubscriptionAction } from "@/app/actions/billing";
+import { openSupportViewAction } from "@/app/actions/platform-admin";
 import { db } from "@/lib/db";
 import { PLAN_CATALOG, normalizePlan } from "@/lib/plans";
 import { AdminPageHeader } from "@/components/admin/page-header";
@@ -74,6 +75,11 @@ export default async function SchoolsAdminPage() {
                     <input name="seats" type="number" min="1" defaultValue={org.subscription?.seats ?? 20} />
                   </label>
                   <AdminSubmitButton pendingLabel="Salvando plano...">Salvar plano</AdminSubmitButton>
+                </form>
+
+                <form action={openSupportViewAction} className="admin-card-secondary-action">
+                  <input type="hidden" name="organizationId" value={org.id} />
+                  <AdminSubmitButton pendingLabel="Abrindo suporte..." variant="secondary">Abrir visão de suporte</AdminSubmitButton>
                 </form>
 
                 <form action={toggleOrganizationAction} className="admin-card-secondary-action">

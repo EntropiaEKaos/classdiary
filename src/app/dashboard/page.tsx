@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CalendarCheck2, MessageCircle, Search, UserPlus } from "lucide-react";
 import { redirect } from "next/navigation";
 import { activeOrganization, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -218,6 +219,13 @@ export default async function Dashboard() {
             Ver relatório completo
           </Link>
         ) : null}
+      </div>
+
+      <div className="dashboard-role-actions">
+        <Link href="/dashboard/meu-dia"><CalendarCheck2 size={18}/><span><strong>Meu dia</strong><small>Prioridades e agenda</small></span></Link>
+        <Link href="/dashboard/buscar"><Search size={18}/><span><strong>Busca global</strong><small>Encontre qualquer registro</small></span></Link>
+        <Link href="/mensagens"><MessageCircle size={18}/><span><strong>Mensagens</strong><small>Comunicação da escola</small></span></Link>
+        {!teacherOnly ? <Link href="/dashboard/alunos"><UserPlus size={18}/><span><strong>Alunos</strong><small>Cadastros e matrículas</small></span></Link> : <Link href="/dashboard/diarios"><UserPlus size={18}/><span><strong>Diário</strong><small>Aulas e chamada</small></span></Link>}
       </div>
 
       <div className="dashboard-grid">
