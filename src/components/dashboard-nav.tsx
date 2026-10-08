@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   BookOpenCheck,
+  CalendarCheck2,
   CalendarDays,
   ChartNoAxesColumnIncreasing,
   ClipboardCheck,
@@ -15,6 +16,7 @@ import {
   School,
   TriangleAlert,
   UserPlus,
+  UserCircle2,
   Users,
 } from "lucide-react";
 import { activeOrganization, requireUser } from "@/lib/auth";
@@ -31,6 +33,7 @@ type NavItem = {
 
 const items: NavItem[] = [
   { href: "/dashboard", label: "Visão geral", Icon: LayoutDashboard },
+  { href: "/dashboard/meu-dia", label: "Meu dia", Icon: CalendarCheck2 },
   { href: "/dashboard/executivo", label: "Visão executiva", Icon: ChartNoAxesColumnIncreasing, roles: ["SCHOOL_ADMIN", "COORDINATOR"] },
   { href: "/dashboard/coordenacao", label: "Central da coordenação", Icon: Users, roles: ["SCHOOL_ADMIN", "COORDINATOR"] },
   { href: "/dashboard/operacao-interna", label: "Central operacional", Icon: ClipboardCheck, roles: ["SCHOOL_ADMIN", "COORDINATOR", "SECRETARY"] },
@@ -116,6 +119,7 @@ const items: NavItem[] = [
 
   { href: "/dashboard/plano", label: "Plano e uso", Icon: Landmark, roles: ["SCHOOL_ADMIN", "COORDINATOR"] },
   { href: "/dashboard/configuracoes", label: "Configurações", Icon: FileText, roles: ["SCHOOL_ADMIN", "COORDINATOR"] },
+  { href: "/dashboard/perfil", label: "Meu perfil", Icon: UserCircle2 },
 ];
 
 export async function DashboardNav() {
