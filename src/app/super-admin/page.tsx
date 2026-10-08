@@ -1,84 +1,62 @@
 import Link from "next/link";
-import {toggleOrganizationAction,updateSubscriptionAction} from "@/app/actions/billing";
-import {db} from "@/lib/db";
-import {requirePlatformOwner} from "@/lib/auth";
-import { PLAN_CATALOG, normalizePlan } from "@/lib/plans";
+import { db } from "@/lib/db";
+import { getPlatformSettings } from "@/lib/platform-settings";
 
-export const dynamic="force-dynamic";
+export const dynamic = "force-dynamic";
 
-export default async function SuperAdminPage(){
-  await requirePlatformOwner();
+export default async function SuperAdminPage() {
+  const [schools, totalUsers, totalStudents, activeTrials, activeSubscriptions, settings] =
+    await Promise.all([
+      db.organization.count({ where: { slug: { not: "classdiary-platform" } } }),
+      db.user.count(),
+      db.student.count(),
+      db.subscription.count({ where: { status: "TRIAL" } }),
+      db.subscription.count({ where: { status: "ACTIVE" } }),
+      getPlatformSettings(),
+    ]);
 
-  const [organizations,totalUsers,totalStudents,activeTrials]=await Promise.all([
-    db.organization.findMany({
-      where:{slug:{not:"classdiary-platform"}},
-      include:{
-        subscription:true,
-        memberships:{where:{user:{active:true}},select:{userId:true}},
-        _count:{select:{memberships:true,students:{where:{active:true}},classGroups:true}}
-      },
-      orderBy:{createdAt:"desc"}
-    }),
-    db.user.count(),
-    db.student.count(),
-    db.subscription.count({where:{status:"TRIAL"}})
-  ]);
+  const shortcuts = [
+    ["Escolas", "Tenants, planos, bloqueio e capacidade.", "/super-admin/escolas"],
+    ["Usuários", "Contas globais, papéis e bloqueios.", "/super-admin/usuarios"],
+    ["Site & sistema", "Home, cadastro público, trial e manutenção.", "/super-admin/configuracoes"],
+    ["Planos & cobrança", "Catálogo atual e estado do billing.", "/super-admin/planos"],
+    ["Segurança", "Sessões, tentativas bloqueadas e auditoria.", "/super-admin/seguranca"],
+    ["Saúde", "Banco, migrations e indicadores operacionais.", "/super-admin/saude"],
+  ];
 
-  const usageByOrg = new Map(organizations.map((org)=>{
-    const plan=normalizePlan(org.subscription?.plan);
-    const limits=PLAN_CATALOG[plan];
-    const uniqueUsers=new Set(org.memberships?.map((membership)=>membership.userId)??[]).size;
-    return [org.id,{plan,limits,users:uniqueUsers}] as const;
-  }));
-
-  return <main className="main">
-    <div className="page-head">
-      <div>
-        <span className="badge">ClassDiary SaaS</span>
-        <h1>Super Admin</h1>
-        <div className="muted">Visão geral comercial e operacional de todas as escolas.</div>
+  return (
+    <main className="admin-page">
+      <div className="admin-toolbar">
+        <div>
+          <span className="badge">ClassDiary SaaS</span>
+          <h1>Admin Center</h1>
+          <p className="muted">Controle global da plataforma, clientes, segurança e operação.</p>
+        </div>
+        <span className={settings.publicSignupEnabled ? "admin-status ok" : "admin-status warn"}>
+          Cadastro público {settings.publicSignupEnabled ? "aberto" : "fechado"}
+        </span>
       </div>
-      <Link className="btn btn-light" href="/dashboard">Ir para ambiente escolar</Link>
-    </div>
 
-    <div className="dashboard-grid">
-      <div className="kpi"><span className="muted">Escolas</span><div className="value">{organizations.length}</div></div>
-      <div className="kpi"><span className="muted">Usuários</span><div className="value">{totalUsers}</div></div>
-      <div className="kpi"><span className="muted">Alunos</span><div className="value">{totalStudents}</div></div>
-      <div className="kpi"><span className="muted">Trials ativos</span><div className="value">{activeTrials}</div></div>
-    </div>
-
-    <section style={{marginTop:20}}>
-      <div className="admin-grid">
-        {organizations.map(org=>{const usage=usageByOrg.get(org.id)!;return <article className="tenant-card" key={org.id}>
-          <span className="pill">{org.subscription?.status??"SEM PLANO"}</span>
-          <h3 style={{marginTop:12}}>{org.name}</h3>
-          <div className="muted">{org.slug}</div>
-          <div className="tenant-meta">
-            <span>Plano: <strong>{usage.limits.label}</strong></span>
-            <span>Alunos: <strong>{org._count.students}/{usage.limits.maxStudents??"∞"}</strong></span>
-            <span>Turmas: <strong>{org._count.classGroups}/{usage.limits.maxClasses??"∞"}</strong></span>
-            <span>Usuários: <strong>{usage.users}/{org.subscription?.seats??usage.limits.maxSeats??"∞"}</strong></span>
-            <span>Status: <strong>{org.active?"Ativa":"Bloqueada"}</strong></span>
-          </div>
-          <form action={updateSubscriptionAction} className="form-stack" style={{marginTop:16}}>
-            <input type="hidden" name="organizationId" value={org.id}/>
-            <select name="plan" defaultValue={org.subscription?.plan??"STARTER"}>
-              <option value="STARTER">Starter</option><option value="PRO">Pro</option><option value="ENTERPRISE">Enterprise</option>
-            </select>
-            <select name="status" defaultValue={org.subscription?.status??"TRIAL"}>
-              <option value="TRIAL">Trial</option><option value="ACTIVE">Ativa</option><option value="PAST_DUE">Em atraso</option><option value="CANCELED">Cancelada</option>
-            </select>
-            <input name="seats" type="number" min="1" defaultValue={org.subscription?.seats??20}/>
-            <button className="btn btn-primary">Salvar plano</button>
-          </form>
-          <form action={toggleOrganizationAction} style={{marginTop:8}}>
-            <input type="hidden" name="organizationId" value={org.id}/>
-            <button className="btn btn-light">{org.active?"Bloquear escola":"Desbloquear escola"}</button>
-          </form>
-        </article>})}
+      <div className="dashboard-grid">
+        <div className="kpi"><span className="muted">Escolas</span><div className="value">{schools}</div></div>
+        <div className="kpi"><span className="muted">Usuários</span><div className="value">{totalUsers}</div></div>
+        <div className="kpi"><span className="muted">Alunos</span><div className="value">{totalStudents}</div></div>
+        <div className="kpi"><span className="muted">Assinaturas ativas</span><div className="value">{activeSubscriptions}</div></div>
       </div>
-      {organizations.length===0?<div className="table-card"><p className="muted">Nenhuma escola cliente criada ainda.</p></div>:null}
-    </section>
-  </main>
+
+      <section className="admin-section">
+        <h2>Estado comercial</h2>
+        <p className="muted">Trial padrão: {settings.trialDays} dias · Trials em andamento: {activeTrials}.</p>
+      </section>
+
+      <div className="admin-shortcuts">
+        {shortcuts.map(([title, text, href]) => (
+          <Link className="admin-shortcut" href={href} key={href}>
+            <strong>{title}</strong>
+            <span className="muted">{text}</span>
+          </Link>
+        ))}
+      </div>
+    </main>
+  );
 }

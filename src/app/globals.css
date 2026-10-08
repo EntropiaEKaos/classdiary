@@ -103,3 +103,43 @@ select{width:100%;border:1px solid var(--border);background:#fff;border-radius:1
 .negative{color:#b91c1c;font-weight:700}
 textarea{width:100%;border:1px solid var(--border);background:#fff;border-radius:11px;padding:11px 12px;outline:none;font:inherit;resize:vertical}
 textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(91,91,214,.1)}
+
+
+/* Super Admin Center */
+.admin-center-shell{min-height:100vh;display:grid;grid-template-columns:260px minmax(0,1fr);background:#f4f7fb}
+.admin-center-sidebar{background:#0f172a;color:#cbd5e1;padding:22px 16px;position:sticky;top:0;height:100vh;overflow:auto}
+.admin-center-sidebar .brand{color:#fff;padding:0 8px 18px}
+.admin-center-sidebar .admin-caption{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#64748b;padding:14px 12px 8px;font-weight:800}
+.admin-center-nav{display:grid;gap:4px}
+.admin-center-link{display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:11px;font-size:14px;font-weight:700;color:#aebbd0}
+.admin-center-link:hover{background:#1e293b;color:#fff}
+.admin-center-content{min-width:0}
+.admin-page{padding:30px}
+.admin-toolbar{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:24px}
+.admin-toolbar h1{margin:4px 0 5px;font-size:32px}
+.admin-section{background:#fff;border:1px solid var(--border);border-radius:18px;padding:22px;margin-top:18px}
+.admin-section h2{margin:0 0 6px}
+.admin-shortcuts{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:18px}
+.admin-shortcut{background:#fff;border:1px solid var(--border);border-radius:16px;padding:18px;display:grid;gap:8px}
+.admin-shortcut:hover{border-color:#c7d2fe;box-shadow:0 10px 28px rgba(15,23,42,.06)}
+.admin-table{width:100%;border-collapse:collapse;font-size:13px}
+.admin-table th,.admin-table td{text-align:left;padding:12px 10px;border-bottom:1px solid #edf1f5;vertical-align:top}
+.admin-table th{color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.admin-table tr:last-child td{border-bottom:0}
+.admin-status{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:800;background:#eef2ff;color:#4338ca}
+.admin-status.ok{background:#e8fbf5;color:#087f69}.admin-status.warn{background:#fff7ed;color:#c2410c}.admin-status.danger{background:#fff1f0;color:#b42318}
+.admin-settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.admin-form-section{background:#fff;border:1px solid var(--border);border-radius:18px;padding:22px;display:grid;gap:14px}
+.admin-form-section h2{margin:0}
+textarea{width:100%;border:1px solid var(--border);background:#fff;border-radius:11px;padding:11px 12px;outline:none;resize:vertical;font:inherit}
+textarea:focus,input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(91,91,214,.1)}
+.checkbox-line{display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--border);border-radius:12px}
+.checkbox-line input{width:auto;margin-top:2px}
+.admin-plan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.admin-plan{background:#fff;border:1px solid var(--border);border-radius:18px;padding:22px}
+.admin-plan h2{margin:0 0 14px}
+.admin-plan dl{display:grid;gap:9px;margin:0}.admin-plan dl div{display:flex;justify-content:space-between;gap:12px}.admin-plan dt{color:var(--muted)}.admin-plan dd{margin:0;font-weight:800}
+.admin-note{border-left:4px solid var(--primary);background:#f8faff;padding:14px 16px;border-radius:0 12px 12px 0}
+.site-maintenance-banner{background:#fff7ed;color:#9a3412;border-bottom:1px solid #fed7aa;padding:10px 16px;text-align:center;font-weight:700;font-size:13px}
+@media(max-width:1000px){.admin-center-shell{grid-template-columns:1fr}.admin-center-sidebar{position:relative;height:auto}.admin-shortcuts,.admin-plan-grid{grid-template-columns:1fr 1fr}.admin-settings-grid{grid-template-columns:1fr}}
+@media(max-width:620px){.admin-page{padding:18px}.admin-toolbar{display:grid}.admin-shortcuts,.admin-plan-grid{grid-template-columns:1fr}.admin-table{display:block;overflow-x:auto}}
