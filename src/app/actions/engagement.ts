@@ -7,7 +7,7 @@ import { activeOrganization, requireUser } from "@/lib/auth";
 import { requireSchoolRole } from "@/lib/rbac";
 import { assertTrustedMutationOrigin } from "@/lib/security";
 
-function safeAttachmentUrl(value: string) {
+function safeAttachmentUrl(value?: string) {
   if (!value) return null;
   const url = new URL(value);
   if (
