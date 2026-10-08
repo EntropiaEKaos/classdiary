@@ -77,9 +77,6 @@ export function AdminNavigation() {
     };
   }, [open]);
 
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
 
   return (
     <>
