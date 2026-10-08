@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { createConversationAction } from "@/app/actions/engagement";
 import { activeOrganization, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -32,7 +33,7 @@ export default async function Page() {
   ]);
 
   return <main className="main">
-    <div className="page-head"><div><h1>Mensagens</h1><div className="muted">Comunicação interna da comunidade escolar.</div></div></div>
+    <div className="page-head"><div><Link className="page-back-button" href="/dashboard"><ArrowLeft size={16} />Voltar ao dashboard</Link><h1>Mensagens</h1><div className="muted">Comunicação interna da comunidade escolar.</div></div></div>
     <section className="table-card">
       <h3>Nova conversa</h3>
       <form action={createConversationAction} className="form-grid">
