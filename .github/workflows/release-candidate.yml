@@ -1,4 +1,4 @@
-name: ClassDiary Release Candidate
+name: EduSync Release Candidate
 
 on:
   workflow_dispatch:

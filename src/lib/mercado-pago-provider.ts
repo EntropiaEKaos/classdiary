@@ -96,7 +96,7 @@ export class MercadoPagoBillingProvider implements BillingProvider {
           "X-Idempotency-Key": request.externalReference,
         },
         body: JSON.stringify({
-          reason: `ClassDiary ${request.plan}`,
+          reason: `EduSync ${request.plan}`,
           external_reference: request.externalReference,
           payer_email: request.customerEmail,
           auto_recurring: {

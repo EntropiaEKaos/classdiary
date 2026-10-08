@@ -15,7 +15,7 @@ export default async function SupportViewPage({
   const { id } = await params;
 
   const organization = await db.organization.findFirst({
-    where: { id, slug: { not: "classdiary-platform" } },
+    where: { id, slug: { not: "edusync-platform" } },
     include: {
       subscription: true,
       _count: {
