@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 import { evaluateProductionEnvironment } from "../src/lib/release-env";
 
 const validEnv = {
-  DATABASE_URL: "postgresql://app:strong@db.example.com:5432/classdiary",
-  APP_URL: "https://preview.classdiary.example",
+  DATABASE_URL: "postgresql://app:strong@db.example.com:5432/edusync",
+  APP_URL: "https://preview.edusync.example",
   ADMIN_BOOTSTRAP_TOKEN: "0123456789abcdef0123456789abcdef",
   BILLING_PROVIDER: "mercado_pago",
   MERCADO_PAGO_ACCESS_TOKEN: "TEST_ACCESS_TOKEN",
@@ -21,7 +21,7 @@ test("production environment gate accepts a complete non-local configuration", a
 test("production environment gate rejects local and default credentials", async () => {
   const checks = evaluateProductionEnvironment({
     ...validEnv,
-    DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/classdiary",
+    DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/edusync",
     APP_URL: "http://localhost:3000",
     ADMIN_BOOTSTRAP_TOKEN: "replace-with-a-long-random-token",
     SEED_OWNER_PASSWORD: "ChangeMe123!",
