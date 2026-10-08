@@ -1,6 +1,6 @@
 # Migrações de banco para produção
 
-O ClassDiary ainda está em fase de evolução rápida e, até este ponto, o ambiente de desenvolvimento/CI usa `prisma db push`.
+O EduSync ainda está em fase de evolução rápida e, até este ponto, o ambiente de desenvolvimento/CI usa `prisma db push`.
 
 ## Estado atual
 

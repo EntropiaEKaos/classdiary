@@ -1,8 +1,8 @@
-# ClassDiary — Checklist de Preview Vercel
+# EduSync — Checklist de Preview Vercel
 
 ## 1. Banco
 
-Criar um PostgreSQL exclusivo para o ClassDiary e obter uma `DATABASE_URL`.
+Criar um PostgreSQL exclusivo para o EduSync e obter uma `DATABASE_URL`.
 
 Não reutilizar banco de outro projeto.
 
