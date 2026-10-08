@@ -92,13 +92,15 @@ test("mobile Admin Center exposes menu, quick navigation and responsive actions"
   await expect(page.getByRole("link", { name: "Voltar" })).toBeVisible();
 
   await page.getByLabel("Abrir menu do Admin Center").click();
-  await expect(page.getByRole("navigation", { name: "Menu do Admin Center", exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Segurança & auditoria" })).toBeVisible();
+  const drawer = page.locator(".admin-mobile-drawer");
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole("navigation", { name: "Menu do Admin Center", exact: true })).toBeVisible();
+  await expect(drawer.getByRole("link", { name: "Segurança & auditoria", exact: true })).toBeVisible();
 
-  await page.getByLabel("Fechar menu do Admin Center").click();
-  await expect(page.locator(".admin-mobile-drawer")).toHaveCount(0);
+  await drawer.getByRole("button", { name: "Fechar menu do Admin Center", exact: true }).click();
+  await expect(drawer).toBeHidden();
 
-  const savePlan = page.getByRole("button", { name: "Salvar plano" }).first();
+  const savePlan = page.getByRole("button", { name: "Salvar plano", exact: true }).first();
   await expect(savePlan).toBeVisible();
   const box = await savePlan.boundingBox();
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(40);
