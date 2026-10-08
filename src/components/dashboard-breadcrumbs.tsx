@@ -30,13 +30,12 @@ export function DashboardBreadcrumbs() {
   if (pathname === "/dashboard") return null;
 
   const segments = pathname.split("/").filter(Boolean).slice(1);
-  let href = "/dashboard";
 
   return (
     <nav className="dashboard-breadcrumbs" aria-label="Breadcrumb">
       <Link href="/dashboard"><Home size={14} /><span>Dashboard</span></Link>
       {segments.map((segment, index) => {
-        href += "/" + segment;
+        const href = "/dashboard/" + segments.slice(0, index + 1).join("/");
         const last = index === segments.length - 1;
         return (
           <span className="breadcrumb-segment" key={href}>
