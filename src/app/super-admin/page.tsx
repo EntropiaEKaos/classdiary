@@ -1,6 +1,15 @@
 import Link from "next/link";
+import {
+  Activity,
+  Building2,
+  CreditCard,
+  Settings,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
 import { db } from "@/lib/db";
 import { getPlatformSettings } from "@/lib/platform-settings";
+import { AdminPageHeader } from "@/components/admin/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -16,46 +25,61 @@ export default async function SuperAdminPage() {
     ]);
 
   const shortcuts = [
-    ["Escolas", "Tenants, planos, bloqueio e capacidade.", "/super-admin/escolas"],
-    ["Usuários", "Contas globais, papéis e bloqueios.", "/super-admin/usuarios"],
-    ["Site & sistema", "Home, cadastro público, trial e manutenção.", "/super-admin/configuracoes"],
-    ["Planos & cobrança", "Catálogo atual e estado do billing.", "/super-admin/planos"],
-    ["Segurança", "Sessões, tentativas bloqueadas e auditoria.", "/super-admin/seguranca"],
-    ["Saúde", "Banco, migrations e indicadores operacionais.", "/super-admin/saude"],
+    { title: "Escolas", text: "Tenants, planos, bloqueio e capacidade.", href: "/super-admin/escolas", icon: Building2 },
+    { title: "Usuários", text: "Contas globais, papéis e bloqueios.", href: "/super-admin/usuarios", icon: Users },
+    { title: "Site & sistema", text: "Home, cadastro público, trial e manutenção.", href: "/super-admin/configuracoes", icon: Settings },
+    { title: "Planos & cobrança", text: "Catálogo atual e estado do billing.", href: "/super-admin/planos", icon: CreditCard },
+    { title: "Segurança", text: "Sessões, tentativas bloqueadas e auditoria.", href: "/super-admin/seguranca", icon: ShieldCheck },
+    { title: "Saúde", text: "Banco, migrations e indicadores operacionais.", href: "/super-admin/saude", icon: Activity },
   ];
 
   return (
     <main className="admin-page">
-      <div className="admin-toolbar">
-        <div>
-          <span className="badge">ClassDiary SaaS</span>
-          <h1>Admin Center</h1>
-          <p className="muted">Controle global da plataforma, clientes, segurança e operação.</p>
-        </div>
+      <AdminPageHeader
+        eyebrow="ClassDiary SaaS"
+        title="Admin Center"
+        description="Controle global da plataforma, clientes, segurança e operação."
+        backHref="/dashboard"
+        backLabel="Dashboard"
+      >
         <span className={settings.publicSignupEnabled ? "admin-status ok" : "admin-status warn"}>
-          Cadastro público {settings.publicSignupEnabled ? "aberto" : "fechado"}
+          <span className="admin-status-dot" />
+          Cadastro {settings.publicSignupEnabled ? "aberto" : "fechado"}
         </span>
+      </AdminPageHeader>
+
+      <div className="admin-kpi-grid">
+        <article className="admin-kpi-card"><span>Escolas</span><strong>{schools}</strong><small>instituições cadastradas</small></article>
+        <article className="admin-kpi-card"><span>Usuários</span><strong>{totalUsers}</strong><small>contas na plataforma</small></article>
+        <article className="admin-kpi-card"><span>Alunos</span><strong>{totalStudents}</strong><small>registros acadêmicos</small></article>
+        <article className="admin-kpi-card"><span>Assinaturas ativas</span><strong>{activeSubscriptions}</strong><small>{activeTrials} trials em andamento</small></article>
       </div>
 
-      <div className="dashboard-grid">
-        <div className="kpi"><span className="muted">Escolas</span><div className="value">{schools}</div></div>
-        <div className="kpi"><span className="muted">Usuários</span><div className="value">{totalUsers}</div></div>
-        <div className="kpi"><span className="muted">Alunos</span><div className="value">{totalStudents}</div></div>
-        <div className="kpi"><span className="muted">Assinaturas ativas</span><div className="value">{activeSubscriptions}</div></div>
-      </div>
-
-      <section className="admin-section">
-        <h2>Estado comercial</h2>
-        <p className="muted">Trial padrão: {settings.trialDays} dias · Trials em andamento: {activeTrials}.</p>
+      <section className="admin-hero-panel">
+        <div>
+          <span className="admin-eyebrow">Estado comercial</span>
+          <h2>Operação pronta para crescer</h2>
+          <p>Trial padrão de <strong>{settings.trialDays} dias</strong>. Use os atalhos abaixo para administrar clientes, cobrança e infraestrutura.</p>
+        </div>
+        <Link className="btn admin-action-button admin-action-primary" href="/super-admin/configuracoes">
+          Configurar plataforma
+        </Link>
       </section>
 
       <div className="admin-shortcuts">
-        {shortcuts.map(([title, text, href]) => (
-          <Link className="admin-shortcut" href={href} key={href}>
-            <strong>{title}</strong>
-            <span className="muted">{text}</span>
-          </Link>
-        ))}
+        {shortcuts.map((item) => {
+          const Icon = item.icon;
+          return (
+            <Link className="admin-shortcut" href={item.href} key={item.href}>
+              <span className="admin-shortcut-icon"><Icon size={20} /></span>
+              <span>
+                <strong>{item.title}</strong>
+                <small>{item.text}</small>
+              </span>
+              <span className="admin-shortcut-arrow">→</span>
+            </Link>
+          );
+        })}
       </div>
     </main>
   );

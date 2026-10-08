@@ -1,6 +1,8 @@
 import { togglePlatformUserAction } from "@/app/actions/platform-admin";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { AdminPageHeader } from "@/components/admin/page-header";
+import { AdminSubmitButton } from "@/components/admin/submit-button";
 
 export const dynamic = "force-dynamic";
 
@@ -19,32 +21,50 @@ export default async function UsersAdminPage() {
     currentUser(),
   ]);
 
+  const activeUsers = users.filter((user) => user.active).length;
+
   return (
     <main className="admin-page">
-      <div className="admin-toolbar">
-        <div><span className="badge">Identidade</span><h1>Usuários</h1><p className="muted">Contas globais e vínculos com escolas.</p></div>
-      </div>
-      <section className="admin-section">
-        <table className="admin-table">
-          <thead><tr><th>Usuário</th><th>Acessos</th><th>Status</th><th>Ação</th></tr></thead>
-          <tbody>
-            {users.map((user) => (
-              <tr key={user.id}>
-                <td><strong>{user.name}</strong><br/><span className="muted">{user.email}</span></td>
-                <td>{user.memberships.length ? user.memberships.map((m) => <div key={m.id}>{m.role} · {m.organization.name}</div>) : <span className="muted">Sem vínculo</span>}</td>
-                <td><span className={user.active ? "admin-status ok" : "admin-status danger"}>{user.active ? "Ativo" : "Bloqueado"}</span></td>
-                <td>
-                  {actor?.id === user.id ? <span className="muted">Sua conta</span> : (
-                    <form action={togglePlatformUserAction}>
-                      <input type="hidden" name="userId" value={user.id}/>
-                      <button className="btn btn-light">{user.active ? "Bloquear" : "Reativar"}</button>
-                    </form>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <AdminPageHeader
+        eyebrow="Identidade"
+        title="Usuários"
+        description="Contas globais, vínculos com escolas e controle de acesso."
+      >
+        <span className="admin-count-pill">{activeUsers} ativos</span>
+      </AdminPageHeader>
+
+      <section className="admin-section admin-table-section">
+        <div className="admin-section-head">
+          <div><h2>Contas da plataforma</h2><p>Mostrando até 150 usuários recentes.</p></div>
+        </div>
+        <div className="admin-table-wrap">
+          <table className="admin-table admin-responsive-table">
+            <thead><tr><th>Usuário</th><th>Acessos</th><th>Status</th><th>Ação</th></tr></thead>
+            <tbody>
+              {users.map((user) => (
+                <tr key={user.id}>
+                  <td data-label="Usuário"><strong>{user.name}</strong><br/><span className="muted admin-break-text">{user.email}</span></td>
+                  <td data-label="Acessos">
+                    {user.memberships.length
+                      ? user.memberships.map((m) => <div className="admin-access-line" key={m.id}><strong>{m.organization.name}</strong><span>{m.role}</span></div>)
+                      : <span className="muted">Sem vínculo</span>}
+                  </td>
+                  <td data-label="Status"><span className={user.active ? "admin-status ok" : "admin-status danger"}><span className="admin-status-dot" />{user.active ? "Ativo" : "Bloqueado"}</span></td>
+                  <td data-label="Ação" className="admin-table-action">
+                    {actor?.id === user.id ? <span className="admin-self-chip">Sua conta</span> : (
+                      <form action={togglePlatformUserAction}>
+                        <input type="hidden" name="userId" value={user.id}/>
+                        <AdminSubmitButton pendingLabel={user.active ? "Bloqueando..." : "Reativando..."} variant={user.active ? "danger" : "secondary"}>
+                          {user.active ? "Bloquear" : "Reativar"}
+                        </AdminSubmitButton>
+                      </form>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </main>
   );
