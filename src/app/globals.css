@@ -461,3 +461,25 @@ html[data-theme="dark"] .negative{color:#f87171}
 @media(max-width:560px){
   .page-back-button{min-height:40px;margin-bottom:8px}
 }
+
+
+/* Public mobile authentication shortcut */
+.public-mobile-login{display:none}
+@media(max-width:900px){
+  .public-mobile-login{
+    display:inline-flex;
+    min-height:40px;
+    padding:9px 13px;
+    gap:7px;
+    white-space:nowrap;
+    box-shadow:0 6px 18px rgba(15,23,42,.04);
+  }
+}
+@media(max-width:420px){
+  .topbar{gap:8px}
+  .topbar .brand{min-width:0}
+  .topbar .brand{font-size:15px;gap:7px}
+  .topbar .brand .logo{width:34px;height:34px;border-radius:10px}
+  .public-header-actions{gap:6px}
+  .public-mobile-login{padding:9px 11px;font-size:12px}
+}

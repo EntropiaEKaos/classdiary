@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpenCheck, CheckCircle2, GraduationCap, LineChart, School, ShieldCheck, Users } from "lucide-react";
+import { BookOpenCheck, CheckCircle2, GraduationCap, LineChart, LogIn, School, ShieldCheck, Users } from "lucide-react";
 import { getPlatformSettings } from "@/lib/platform-settings";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -15,6 +15,7 @@ export default async function Home() {
         <div className="brand"><span className="logo"><BookOpenCheck size={21}/></span> {settings.siteName}</div>
         <div className="public-header-actions">
           <ThemeToggle />
+          <Link className="public-mobile-login btn btn-light" href="/login"><LogIn size={16} />Entrar</Link>
           <nav className="nav">
           <a href="#recursos">Recursos</a>
           <a href="#saas">Para escolas</a>
