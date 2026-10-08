@@ -2,6 +2,7 @@ import { createSchoolAction } from "@/app/actions/school";
 import { activeOrganization, requireUser } from "@/lib/auth";
 import { getPlatformSettings } from "@/lib/platform-settings";
 import { redirect } from "next/navigation";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,7 @@ export default async function Onboarding() {
 
   return (
     <main className="auth-page">
+      <div className="auth-theme-control"><ThemeToggle showLabel /></div>
       <section className="auth-card wide">
         <div>
           <span className="badge">{settings.trialDays} dias grátis</span>

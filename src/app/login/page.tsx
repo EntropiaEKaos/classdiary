@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BookOpenCheck } from "lucide-react";
 import { loginAction } from "@/app/actions/auth";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default async function Login({
   searchParams,
@@ -18,6 +19,7 @@ export default async function Login({
 
   return (
     <main className="auth-page">
+      <div className="auth-theme-control"><ThemeToggle showLabel /></div>
       <section className="auth-card">
         <Link href="/" className="brand">
           <span className="logo">

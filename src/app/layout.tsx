@@ -8,7 +8,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: "(() => {\n  try {\n    const stored = window.localStorage.getItem(\"classdiary-theme\");\n    const prefersDark = window.matchMedia(\"(prefers-color-scheme: dark)\").matches;\n    const theme = stored === \"dark\" || (stored !== \"light\" && prefersDark) ? \"dark\" : \"light\";\n    document.documentElement.dataset.theme = theme;\n    document.documentElement.style.colorScheme = theme;\n  } catch {\n    document.documentElement.dataset.theme = \"light\";\n  }\n})();" }} />
+      </head>
       <body>{children}</body>
     </html>
   );

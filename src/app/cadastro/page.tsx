@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BookOpenCheck } from "lucide-react";
 import { signupOwnerAction } from "@/app/actions/auth";
 import { getPlatformSettings } from "@/lib/platform-settings";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ export default async function Signup({
 
   return (
     <main className="auth-page">
+      <div className="auth-theme-control"><ThemeToggle showLabel /></div>
       <section className="auth-card">
         <Link href="/" className="brand">
           <span className="logo"><BookOpenCheck size={20} /></span>

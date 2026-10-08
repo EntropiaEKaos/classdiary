@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BookOpenCheck, CheckCircle2, GraduationCap, LineChart, School, ShieldCheck, Users } from "lucide-react";
 import { getPlatformSettings } from "@/lib/platform-settings";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -12,13 +13,16 @@ export default async function Home() {
       {settings.maintenanceMode ? <div className="site-maintenance-banner">O {settings.siteName} está em manutenção programada. O acesso de clientes continua disponível.</div> : null}
       <header className="container topbar">
         <div className="brand"><span className="logo"><BookOpenCheck size={21}/></span> {settings.siteName}</div>
-        <nav className="nav">
+        <div className="public-header-actions">
+          <ThemeToggle />
+          <nav className="nav">
           <a href="#recursos">Recursos</a>
           <a href="#saas">Para escolas</a>
           <a href="#seguranca">Segurança</a>
           <Link className="btn btn-light" href="/login">Entrar</Link>
           {settings.publicSignupEnabled ? <Link className="btn btn-primary" href="/cadastro">Testar grátis</Link> : null}
         </nav>
+        </div>
       </header>
 
       <main>
