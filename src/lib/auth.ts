@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 const COOKIE = "classdiary_session";
 const SESSION_MS = 7 * 86_400_000;
 const MAX_ACTIVE_SESSIONS = 5;
+const PLATFORM_SLUG = "edusync-platform";
 
 const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -71,7 +72,7 @@ export async function createSession(userId: string) {
       userId,
       organization: {
         active: true,
-        slug: { not: "classdiary-platform" },
+        slug: { not: PLATFORM_SLUG },
       },
     },
     orderBy: { createdAt: "asc" },
@@ -129,7 +130,7 @@ export async function activeOrganization() {
   const allowed = session.user.memberships.filter(
     (membership) =>
       membership.organization.active &&
-      membership.organization.slug !== "classdiary-platform",
+      membership.organization.slug !== PLATFORM_SLUG,
   );
 
   if (!allowed.length) return null;
@@ -150,7 +151,7 @@ export async function setActiveOrganization(organizationId: string) {
     (membership) =>
       membership.organizationId === organizationId &&
       membership.organization.active &&
-      membership.organization.slug !== "classdiary-platform",
+      membership.organization.slug !== PLATFORM_SLUG,
   );
 
   if (!allowed) {
