@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { AdminPageHeader } from "@/components/admin/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -22,24 +23,34 @@ export default async function HealthAdminPage() {
 
   return (
     <main className="admin-page">
-      <div className="admin-toolbar">
-        <div><span className="badge">Operações</span><h1>Saúde da plataforma</h1><p className="muted">Diagnóstico direto do runtime e do PostgreSQL.</p></div>
-        <span className={databaseOk ? "admin-status ok" : "admin-status danger"}>Banco {databaseOk ? "online" : "indisponível"}</span>
+      <AdminPageHeader
+        eyebrow="Operações"
+        title="Saúde da plataforma"
+        description="Diagnóstico direto do runtime e do PostgreSQL."
+      >
+        <span className={databaseOk ? "admin-status ok" : "admin-status danger"}><span className="admin-status-dot" />Banco {databaseOk ? "online" : "indisponível"}</span>
+      </AdminPageHeader>
+
+      <div className="admin-kpi-grid">
+        <article className="admin-kpi-card"><span>Migrations aplicadas</span><strong>{migrations.length}</strong><small>histórico válido</small></article>
+        <article className="admin-kpi-card"><span>Escolas ativas</span><strong>{schools}</strong><small>tenants operacionais</small></article>
+        <article className="admin-kpi-card"><span>Usuários ativos</span><strong>{users}</strong><small>contas habilitadas</small></article>
+        <article className="admin-kpi-card"><span>Sessões</span><strong>{sessions}</strong><small>registros existentes</small></article>
       </div>
-      <div className="dashboard-grid">
-        <div className="kpi"><span className="muted">Migrations aplicadas</span><div className="value">{migrations.length}</div></div>
-        <div className="kpi"><span className="muted">Escolas ativas</span><div className="value">{schools}</div></div>
-        <div className="kpi"><span className="muted">Usuários ativos</span><div className="value">{users}</div></div>
-        <div className="kpi"><span className="muted">Sessões</span><div className="value">{sessions}</div></div>
-      </div>
-      <section className="admin-section">
-        <h2>Migrations aplicadas</h2>
-        <table className="admin-table">
-          <thead><tr><th>Migration</th><th>Finalizada</th></tr></thead>
-          <tbody>{migrations.map((migration) => (
-            <tr key={migration.migration_name}><td><strong>{migration.migration_name}</strong></td><td>{migration.finished_at?.toLocaleString("pt-BR") ?? "Pendente"}</td></tr>
-          ))}</tbody>
-        </table>
+
+      <section className="admin-section admin-table-section">
+        <div className="admin-section-head"><div><h2>Migrations aplicadas</h2><p>Histórico reconhecido pelo Prisma na base atual.</p></div></div>
+        <div className="admin-table-wrap">
+          <table className="admin-table admin-responsive-table">
+            <thead><tr><th>Migration</th><th>Finalizada</th></tr></thead>
+            <tbody>{migrations.map((migration) => (
+              <tr key={migration.migration_name}>
+                <td data-label="Migration" className="admin-break-text"><strong>{migration.migration_name}</strong></td>
+                <td data-label="Finalizada">{migration.finished_at?.toLocaleString("pt-BR") ?? "Pendente"}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
       </section>
     </main>
   );

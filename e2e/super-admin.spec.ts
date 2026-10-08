@@ -80,3 +80,40 @@ test("platform settings persist and control the public site", async ({ page }) =
     }
   }
 });
+
+test("mobile Admin Center exposes menu, quick navigation and responsive actions", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loginAsPlatformOwner(page);
+  await page.goto("/super-admin/escolas");
+
+  await expect(page.getByLabel("Abrir menu do Admin Center")).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Atalhos do Admin Center" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Ajustes" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Voltar" })).toBeVisible();
+
+  await page.getByLabel("Abrir menu do Admin Center").click();
+  await expect(page.getByRole("navigation", { name: "Menu do Admin Center", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Segurança & auditoria" })).toBeVisible();
+
+  await page.getByLabel("Fechar menu do Admin Center").click();
+  await expect(page.locator(".admin-mobile-drawer")).toHaveCount(0);
+
+  const savePlan = page.getByRole("button", { name: "Salvar plano" }).first();
+  await expect(savePlan).toBeVisible();
+  const box = await savePlan.boundingBox();
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(40);
+});
+
+test("mobile user table becomes readable cards without horizontal page overflow", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loginAsPlatformOwner(page);
+  await page.goto("/super-admin/usuarios");
+
+  const metrics = await page.evaluate(() => ({
+    body: document.body.scrollWidth,
+    viewport: window.innerWidth,
+  }));
+  expect(metrics.body).toBeLessThanOrEqual(metrics.viewport + 1);
+  await expect(page.locator(".admin-responsive-table tbody tr").first()).toBeVisible();
+  await expect(page.locator(".admin-responsive-table td[data-label='Usuário']").first()).toBeVisible();
+});

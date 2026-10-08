@@ -1,3 +1,5 @@
+import { AdminPageHeader } from "@/components/admin/page-header";
+
 const status = (value?: string) => value ? "Configurado" : "Não configurado";
 
 const integrations = [
@@ -9,25 +11,35 @@ const integrations = [
 ];
 
 export default function IntegrationsAdminPage() {
+  const configured = integrations.filter(([, value]) => Boolean(value)).length;
+
   return (
     <main className="admin-page">
-      <div className="admin-toolbar">
-        <div><span className="badge">Infraestrutura</span><h1>Integrações</h1><p className="muted">Visibilidade segura do estado das integrações, sem revelar credenciais.</p></div>
-      </div>
-      <section className="admin-section">
-        <table className="admin-table">
-          <thead><tr><th>Integração</th><th>Uso</th><th>Status</th></tr></thead>
-          <tbody>
-            {integrations.map(([name, value, description]) => (
-              <tr key={name}>
-                <td><strong>{name}</strong></td>
-                <td className="muted">{description}</td>
-                <td><span className={value ? "admin-status ok" : "admin-status warn"}>{status(value)}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <AdminPageHeader
+        eyebrow="Infraestrutura"
+        title="Integrações"
+        description="Visibilidade segura do estado das integrações, sem revelar credenciais."
+      >
+        <span className="admin-count-pill">{configured}/{integrations.length} configuradas</span>
+      </AdminPageHeader>
+
+      <section className="admin-section admin-table-section">
+        <div className="admin-table-wrap">
+          <table className="admin-table admin-responsive-table">
+            <thead><tr><th>Integração</th><th>Uso</th><th>Status</th></tr></thead>
+            <tbody>
+              {integrations.map(([name, value, description]) => (
+                <tr key={name}>
+                  <td data-label="Integração"><strong>{name}</strong></td>
+                  <td data-label="Uso" className="muted">{description}</td>
+                  <td data-label="Status"><span className={value ? "admin-status ok" : "admin-status warn"}><span className="admin-status-dot" />{status(value)}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
+      <div className="admin-note admin-wide-note"><strong>Segurança por padrão.</strong><span>Nenhuma credencial ou segredo é renderizado nesta tela.</span></div>
     </main>
   );
 }
