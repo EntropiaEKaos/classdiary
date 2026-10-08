@@ -158,6 +158,7 @@ export async function markNotificationReadAction(fd: FormData) {
   });
 
   revalidatePath("/notificacoes");
+  revalidatePath("/dashboard");
 }
 
 export async function markAllNotificationsReadAction() {
