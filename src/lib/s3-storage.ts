@@ -1,6 +1,5 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
 
-const encoder = new TextEncoder();
 
 function sha256(value: string) {
   return createHash("sha256").update(value).digest("hex");
