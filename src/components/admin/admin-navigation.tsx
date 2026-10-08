@@ -120,7 +120,7 @@ export function AdminNavigation() {
       {open ? (
         <div className="admin-drawer-layer">
           <button
-            aria-label="Fechar menu"
+            aria-label="Fechar menu ao tocar fora"
             className="admin-drawer-backdrop"
             onClick={() => setOpen(false)}
             type="button"
@@ -131,7 +131,7 @@ export function AdminNavigation() {
                 <strong>Admin Center</strong>
                 <span>Controle da plataforma</span>
               </div>
-              <button aria-label="Fechar menu" className="admin-icon-button" onClick={() => setOpen(false)} type="button">
+              <button aria-label="Fechar menu do Admin Center" className="admin-icon-button" onClick={() => setOpen(false)} type="button">
                 <X size={21} />
               </button>
             </div>
