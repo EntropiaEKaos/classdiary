@@ -1,4 +1,4 @@
-"use server";import {redirect} from "next/navigation";import {revalidatePath} from "next/cache";import {z} from "zod";import {db} from "@/lib/db";import {requireUser} from "@/lib/auth";import {requireSchoolRole} from "@/lib/rbac";import type { Prisma } from "../../../generated/prisma/client";import {assertTrustedMutationOrigin} from "@/lib/security";import {withPlanCapacity} from "@/lib/plans";
+"use server";import {redirect} from "next/navigation";import {revalidatePath} from "next/cache";import {z} from "zod";import {db} from "@/lib/db";import {requireUser} from "@/lib/auth";import {requireSchoolRole} from "@/lib/rbac";import type { Prisma } from "../../../generated/prisma/client";import {assertTrustedMutationOrigin} from "@/lib/security";import {withPlanCapacity} from "@/lib/plans";import {getPlatformSettings} from "@/lib/platform-settings";
 export async function createSchoolAction(fd:FormData){
   await assertTrustedMutationOrigin();
   const u=await requireUser();
