@@ -28,19 +28,21 @@ export default async function Layout({ children }: { children: React.ReactNode }
         list.findIndex((item) => item.id === organization.id) === index,
     );
 
-  const [unread, recentNotifications, preference] = org
-    ? await Promise.all([
-        db.notification.count({
+  const [unread, recentNotifications, preference] = await Promise.all([
+    org
+      ? db.notification.count({
           where: { organizationId: org.id, userId: user.id, readAt: null },
-        }),
-        db.notification.findMany({
+        })
+      : Promise.resolve(0),
+    org
+      ? db.notification.findMany({
           where: { organizationId: org.id, userId: user.id },
           orderBy: { createdAt: "desc" },
           take: 6,
-        }),
-        db.userPreference.findUnique({ where: { userId: user.id } }),
-      ])
-    : [0, [], null];
+        })
+      : Promise.resolve([]),
+    db.userPreference.findUnique({ where: { userId: user.id } }),
+  ]);
 
   return (
     <div className={"dashboard-shell " + (preference?.compactMode ? "compact-mode" : "")}>
