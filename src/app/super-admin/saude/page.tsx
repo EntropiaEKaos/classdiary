@@ -3,7 +3,6 @@ import { db } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 export default async function HealthAdminPage() {
-  const startedAt = Date.now();
   let databaseOk = true;
   let migrations: Array<{ migration_name: string; finished_at: Date | null }> = [];
 
@@ -18,7 +17,7 @@ export default async function HealthAdminPage() {
   const [schools, users, sessions] = await Promise.all([
     db.organization.count({ where: { active: true, slug: { not: "classdiary-platform" } } }),
     db.user.count({ where: { active: true } }),
-    db.session.count({ where: { expiresAt: { gt: new Date() } } }),
+    db.session.count(),
   ]);
 
   return (
@@ -28,7 +27,7 @@ export default async function HealthAdminPage() {
         <span className={databaseOk ? "admin-status ok" : "admin-status danger"}>Banco {databaseOk ? "online" : "indisponível"}</span>
       </div>
       <div className="dashboard-grid">
-        <div className="kpi"><span className="muted">Latência da checagem</span><div className="value">{Date.now() - startedAt}ms</div></div>
+        <div className="kpi"><span className="muted">Migrations aplicadas</span><div className="value">{migrations.length}</div></div>
         <div className="kpi"><span className="muted">Escolas ativas</span><div className="value">{schools}</div></div>
         <div className="kpi"><span className="muted">Usuários ativos</span><div className="value">{users}</div></div>
         <div className="kpi"><span className="muted">Sessões</span><div className="value">{sessions}</div></div>
