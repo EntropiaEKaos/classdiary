@@ -1,7 +1,9 @@
-"use server";import {redirect} from "next/navigation";import {revalidatePath} from "next/cache";import {z} from "zod";import {db} from "@/lib/db";import {requireUser} from "@/lib/auth";import {requireSchoolRole} from "@/lib/rbac";import type { Prisma } from "../../../generated/prisma/client";import {assertTrustedMutationOrigin} from "@/lib/security";import {withPlanCapacity} from "@/lib/plans";
+"use server";import {redirect} from "next/navigation";import {revalidatePath} from "next/cache";import {z} from "zod";import {db} from "@/lib/db";import {requireUser} from "@/lib/auth";import {requireSchoolRole} from "@/lib/rbac";import type { Prisma } from "../../../generated/prisma/client";import {assertTrustedMutationOrigin} from "@/lib/security";import {withPlanCapacity} from "@/lib/plans";import {getPlatformSettings} from "@/lib/platform-settings";
 export async function createSchoolAction(fd:FormData){
   await assertTrustedMutationOrigin();
   const u=await requireUser();
+  const platformSettings=await getPlatformSettings();
+  const trialDays=platformSettings.trialDays;
   const p=z.object({
     name:z.string().min(2),
     slug:z.string().min(2).regex(/^[a-z0-9-]+$/),
@@ -36,7 +38,7 @@ export async function createSchoolAction(fd:FormData){
           plan:p.plan,
           status:"TRIAL",
           seats:planSeats,
-          trialEndsAt:new Date(Date.now()+14*86400000)
+          trialEndsAt:new Date(Date.now()+trialDays*86400000)
         }
       },
       schoolYears:{
@@ -57,7 +59,7 @@ export async function createSchoolAction(fd:FormData){
       action:"CREATE",
       entity:"Organization",
       entityId:org.id,
-      metadata:{source:"SELF_SERVICE_ONBOARDING",plan:p.plan,trialDays:14}
+      metadata:{source:"SELF_SERVICE_ONBOARDING",plan:p.plan,trialDays}
     }
   });
   redirect("/dashboard");

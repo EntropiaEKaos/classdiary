@@ -8,6 +8,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { createSession, destroySession } from "@/lib/auth";
 import { assertTrustedMutationOrigin } from "@/lib/security";
+import { getPlatformSettings } from "@/lib/platform-settings";
 
 const WINDOW_MS = 15 * 60_000;
 const BLOCK_MS = 15 * 60_000;
@@ -125,6 +126,8 @@ export async function logoutAction() {
 
 export async function signupOwnerAction(fd: FormData) {
   await assertTrustedMutationOrigin();
+  const platformSettings = await getPlatformSettings();
+  if (!platformSettings.publicSignupEnabled) redirect("/cadastro?error=closed");
 
   const parsed = z.object({
     name: z.string().min(2).max(120),

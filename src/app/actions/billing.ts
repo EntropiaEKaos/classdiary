@@ -35,6 +35,7 @@ export async function updateSubscriptionAction(fd:FormData){
   });
 
   revalidatePath("/super-admin");
+  revalidatePath("/super-admin/escolas");
 }
 
 export async function toggleOrganizationAction(fd:FormData){
@@ -46,4 +47,5 @@ export async function toggleOrganizationAction(fd:FormData){
   await db.organization.update({where:{id:organizationId},data:{active:!org.active}});
   await db.auditLog.create({data:{userId:user.id,organizationId,action:org.active?"BLOCK":"UNBLOCK",entity:"Organization",entityId:organizationId}});
   revalidatePath("/super-admin");
+  revalidatePath("/super-admin/escolas");
 }

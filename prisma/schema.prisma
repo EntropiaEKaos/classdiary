@@ -2516,3 +2516,20 @@ model LoginThrottle {
   @@index([blockedUntil])
   @@index([lastAttemptAt])
 }
+
+
+model PlatformSettings {
+  id                  String   @id @default("platform")
+  siteName            String   @default("ClassDiary")
+  heroBadge           String   @default("Diário de classe 100% online")
+  heroTitle           String   @default("A escola inteira em um só lugar.")
+  heroSubtitle        String   @default("Presença, notas, aulas, alunos, professores, comunicados e gestão escolar em uma plataforma SaaS moderna.")
+  supportEmail        String?
+  supportWhatsapp     String?
+  publicSignupEnabled Boolean  @default(true)
+  trialDays           Int      @default(14)
+  maintenanceMode     Boolean  @default(false)
+  updatedById         String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}

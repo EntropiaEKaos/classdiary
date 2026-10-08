@@ -1,32 +1,39 @@
 import Link from "next/link";
 import { BookOpenCheck, CheckCircle2, GraduationCap, LineChart, School, ShieldCheck, Users } from "lucide-react";
+import { getPlatformSettings } from "@/lib/platform-settings";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const settings = await getPlatformSettings();
+
   return (
     <>
+      {settings.maintenanceMode ? <div className="site-maintenance-banner">O {settings.siteName} está em manutenção programada. O acesso de clientes continua disponível.</div> : null}
       <header className="container topbar">
-        <div className="brand"><span className="logo"><BookOpenCheck size={21}/></span> ClassDiary</div>
+        <div className="brand"><span className="logo"><BookOpenCheck size={21}/></span> {settings.siteName}</div>
         <nav className="nav">
           <a href="#recursos">Recursos</a>
           <a href="#saas">Para escolas</a>
           <a href="#seguranca">Segurança</a>
-          <Link className="btn btn-light" href="/login">Entrar</Link><Link className="btn btn-primary" href="/cadastro">Testar grátis</Link>
+          <Link className="btn btn-light" href="/login">Entrar</Link>
+          {settings.publicSignupEnabled ? <Link className="btn btn-primary" href="/cadastro">Testar grátis</Link> : null}
         </nav>
       </header>
 
       <main>
         <section className="container hero">
           <div>
-            <span className="badge"><CheckCircle2 size={15}/> Diário de classe 100% online</span>
-            <h1>A escola inteira em um só lugar.</h1>
-            <p>Presença, notas, aulas, alunos, professores, comunicados e gestão escolar em uma plataforma SaaS moderna, rápida e preparada para crescer com cada instituição.</p>
+            <span className="badge"><CheckCircle2 size={15}/> {settings.heroBadge}</span>
+            <h1>{settings.heroTitle}</h1>
+            <p>{settings.heroSubtitle}</p>
             <div className="hero-actions">
-              <Link className="btn btn-primary" href="/cadastro">Começar 14 dias grátis</Link>
+              {settings.publicSignupEnabled ? <Link className="btn btn-primary" href="/cadastro">Começar {settings.trialDays} dias grátis</Link> : <span className="admin-status warn">Novos cadastros temporariamente fechados</span>}
               <a className="btn btn-light" href="#recursos">Conhecer recursos</a>
             </div>
           </div>
 
-          <div className="preview" aria-label="Prévia do painel ClassDiary">
+          <div className="preview" aria-label={`Prévia do painel ${settings.siteName}`}>
             <div className="preview-inner">
               <div className="fake-head"><div><strong>Bom dia, Coordenação</strong><div className="muted">Visão geral de hoje</div></div><span className="avatar"/></div>
               <div className="grid">
@@ -56,6 +63,7 @@ export default function Home() {
               <div className="feature" id="seguranca"><div className="feature-icon"><ShieldCheck/></div><h3>Auditoria e segurança</h3><p className="muted">Registro de ações críticas e estrutura preparada para políticas de acesso e LGPD.</p></div>
               <div className="feature" id="saas"><div className="feature-icon"><BookOpenCheck/></div><h3>Pronto para evoluir</h3><p className="muted">Arquitetura preparada para boletins, calendário, mensagens, documentos, integrações e aplicativo PWA.</p></div>
             </div>
+            {(settings.supportEmail || settings.supportWhatsapp) ? <div className="admin-section"><strong>Fale com o {settings.siteName}</strong><p className="muted">{settings.supportEmail ?? ""}{settings.supportEmail && settings.supportWhatsapp ? " · " : ""}{settings.supportWhatsapp ?? ""}</p></div> : null}
           </div>
         </section>
       </main>
