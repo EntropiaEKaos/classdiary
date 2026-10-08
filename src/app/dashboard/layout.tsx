@@ -5,6 +5,10 @@ import { DashboardNav } from "@/components/dashboard-nav";
 import { activeOrganization, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { DashboardBreadcrumbs } from "@/components/dashboard-breadcrumbs";
+import { DashboardQuickNav } from "@/components/dashboard-quick-nav";
+import { NotificationsBell } from "@/components/notifications-bell";
+import { Search } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -24,18 +28,22 @@ export default async function Layout({ children }: { children: React.ReactNode }
         list.findIndex((item) => item.id === organization.id) === index,
     );
 
-  const unread = org
-    ? await db.notification.count({
-        where: {
-          organizationId: org.id,
-          userId: user.id,
-          readAt: null,
-        },
-      })
-    : 0;
+  const [unread, recentNotifications, preference] = org
+    ? await Promise.all([
+        db.notification.count({
+          where: { organizationId: org.id, userId: user.id, readAt: null },
+        }),
+        db.notification.findMany({
+          where: { organizationId: org.id, userId: user.id },
+          orderBy: { createdAt: "desc" },
+          take: 6,
+        }),
+        db.userPreference.findUnique({ where: { userId: user.id } }),
+      ])
+    : [0, [], null];
 
   return (
-    <div className="dashboard-shell">
+    <div className={"dashboard-shell " + (preference?.compactMode ? "compact-mode" : "")}>
       <DashboardNav />
       <div className="dashboard-content">
         <header className="dashboard-top">
@@ -45,12 +53,24 @@ export default async function Layout({ children }: { children: React.ReactNode }
           </div>
 
           <div className="top-actions">
+            <form className="top-search" action="/dashboard/buscar" method="get">
+              <Search size={15}/>
+              <input aria-label="Busca global" name="q" placeholder="Buscar..." />
+            </form>
             <ThemeToggle />
             <Link className="btn btn-light" href="/agenda">Agenda</Link>
             <Link className="btn btn-light" href="/mensagens">Mensagens</Link>
-            <Link className="btn btn-light" href="/notificacoes">
-              Notificações{unread ? ` (${unread})` : ""}
-            </Link>
+            <NotificationsBell
+              unread={unread}
+              recent={recentNotifications.map((item) => ({
+                id: item.id,
+                title: item.title,
+                body: item.body,
+                href: item.href,
+                createdAt: item.createdAt.toISOString(),
+                read: Boolean(item.readAt),
+              }))}
+            />
 
             {organizations.length > 1 ? (
               <form action={switchOrganizationAction}>
@@ -74,8 +94,10 @@ export default async function Layout({ children }: { children: React.ReactNode }
             </form>
           </div>
         </header>
+        <DashboardBreadcrumbs />
         {children}
       </div>
+      <DashboardQuickNav />
     </div>
   );
 }
