@@ -2,7 +2,7 @@
 
 import { Moon, Sun } from "lucide-react";
 
-const STORAGE_KEY = "classdiary-theme";
+const STORAGE_KEY = "edusync-theme";
 
 export function ThemeToggle({
   showLabel = false,
@@ -19,7 +19,7 @@ export function ThemeToggle({
     root.dataset.theme = next;
     root.style.colorScheme = next;
     window.localStorage.setItem(STORAGE_KEY, next);
-    window.dispatchEvent(new CustomEvent("classdiary-theme-change", { detail: next }));
+    window.dispatchEvent(new CustomEvent("edusync-theme-change", { detail: next }));
   }
 
   return (

@@ -4,7 +4,7 @@ export const PLATFORM_SETTINGS_ID = "platform";
 
 export const DEFAULT_PLATFORM_SETTINGS = {
   id: PLATFORM_SETTINGS_ID,
-  siteName: "ClassDiary",
+  siteName: "EduSync",
   heroBadge: "Diário de classe 100% online",
   heroTitle: "A escola inteira em um só lugar.",
   heroSubtitle:

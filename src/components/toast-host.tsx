@@ -23,8 +23,8 @@ export function ToastHost() {
       }, 3600);
     };
 
-    window.addEventListener("classdiary-toast", listener);
-    return () => window.removeEventListener("classdiary-toast", listener);
+    window.addEventListener("edusync-toast", listener);
+    return () => window.removeEventListener("edusync-toast", listener);
   }, []);
 
   return (
@@ -50,5 +50,5 @@ export function ToastHost() {
 }
 
 export function emitToast(message: string, kind: ToastKind = "success") {
-  window.dispatchEvent(new CustomEvent("classdiary-toast", { detail: { message, kind } }));
+  window.dispatchEvent(new CustomEvent("edusync-toast", { detail: { message, kind } }));
 }
