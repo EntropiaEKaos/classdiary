@@ -22,7 +22,8 @@
     "db:migrate:deploy": "node scripts/check-migration-baseline.mjs && prisma migrate deploy",
     "e2e": "playwright test",
     "security:actions": "node scripts/check-server-action-guards.mjs",
-    "release:env": "tsx scripts/check-production-env.ts"
+    "release:env": "tsx scripts/check-production-env.ts",
+    "preview:config": "tsx scripts/check-preview-config.ts"
   },
   "dependencies": {
     "@prisma/client": "^7.10.0",
