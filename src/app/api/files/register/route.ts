@@ -33,35 +33,88 @@ export async function POST(request: Request) {
       return NextResponse.json({ id: existing.id, registered: false });
     }
 
-    const file = await db.fileAsset.create({
-      data: {
-        organizationId: org.id,
-        uploadedById: user.id,
-        storageKey: input.storageKey,
-        originalName: input.originalName,
-        mimeType: input.mimeType,
-        sizeBytes: input.sizeBytes,
-        category: input.category,
-        entityType: input.entityType || null,
-        entityId: input.entityId || null,
-        publicUrl: null,
-      },
-    });
-
-    await db.auditLog.create({
-      data: {
-        organizationId: org.id,
-        userId: user.id,
-        action: "UPLOAD",
-        entity: "FileAsset",
-        entityId: file.id,
-        metadata: {
-          storageKey: file.storageKey,
-          category: file.category,
-          linkedEntityType: file.entityType,
-          linkedEntityId: file.entityId,
+    const file = await db.$transaction(async (tx) => {
+      const created = await tx.fileAsset.create({
+        data: {
+          organizationId: org.id,
+          uploadedById: user.id,
+          storageKey: input.storageKey,
+          originalName: input.originalName,
+          mimeType: input.mimeType,
+          sizeBytes: input.sizeBytes,
+          category: input.category,
+          entityType: input.entityType || null,
+          entityId: input.entityId || null,
+          publicUrl: null,
         },
-      },
+      });
+
+      if (
+        input.category === "PROFILE_PHOTO" &&
+        input.entityType === "Student" &&
+        input.entityId
+      ) {
+        const student = await tx.student.findFirst({
+          where: { id: input.entityId, organizationId: org.id },
+          select: { id: true, profilePhotoFileId: true },
+        });
+        if (!student) throw new Error("Aluno inválido.");
+
+        if (student.profilePhotoFileId && student.profilePhotoFileId !== created.id) {
+          await tx.fileAsset.updateMany({
+            where: {
+              id: student.profilePhotoFileId,
+              organizationId: org.id,
+              category: "PROFILE_PHOTO",
+            },
+            data: { category: "PROFILE_PHOTO_ARCHIVED" },
+          });
+        }
+
+        await tx.student.update({
+          where: { id: student.id },
+          data: { profilePhotoFileId: created.id },
+        });
+      }
+
+      if (
+        input.entityType === "StudentDocumentRequirement" &&
+        input.entityId
+      ) {
+        const requirement = await tx.studentDocumentRequirement.findFirst({
+          where: { id: input.entityId, organizationId: org.id },
+          select: { id: true },
+        });
+        if (!requirement) throw new Error("Documento obrigatório inválido.");
+
+        await tx.studentDocumentRequirement.update({
+          where: { id: requirement.id },
+          data: {
+            fileAssetId: created.id,
+            fileUrl: null,
+            status: "RECEIVED",
+            receivedAt: new Date(),
+          },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          organizationId: org.id,
+          userId: user.id,
+          action: "UPLOAD",
+          entity: "FileAsset",
+          entityId: created.id,
+          metadata: {
+            storageKey: created.storageKey,
+            category: created.category,
+            linkedEntityType: created.entityType,
+            linkedEntityId: created.entityId,
+          },
+        },
+      });
+
+      return created;
     });
 
     return NextResponse.json({ id: file.id, registered: true });
