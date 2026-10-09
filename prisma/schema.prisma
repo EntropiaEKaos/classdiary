@@ -353,6 +353,7 @@ model Student {
   emergencyContactName String?
   emergencyContactPhone String?
   healthNotes    String?
+  profilePhotoFileId String?
   active         Boolean      @default(true)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   enrollments    Enrollment[]
@@ -600,6 +601,7 @@ model StudentDocumentRequirement {
   required       Boolean      @default(true)
   status         String       @default("PENDING")
   fileUrl        String?
+  fileAssetId    String?
   receivedAt     DateTime?
   notes          String?
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)

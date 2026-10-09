@@ -57,7 +57,12 @@ async function validateEntity(
                   where: { id: entityId, organizationId },
                   select: { id: true },
                 })
-              : null;
+              : entityType === "StudentDocumentRequirement"
+                ? await db.studentDocumentRequirement.findFirst({
+                    where: { id: entityId, organizationId },
+                    select: { id: true },
+                  })
+                : null;
 
   if (!found) throw new Error("Entidade inválida para esta escola.");
 }

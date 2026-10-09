@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { updateStudentProfileAction, upsertStudentDocumentAction } from "@/app/actions/secretary";
+import Image from "next/image";
 import { FileUploadForm } from "@/components/file-upload-form";
+import { FileDeleteButton } from "@/components/file-delete-button";
 import { requireSchoolRole } from "@/lib/rbac";
 import { db } from "@/lib/db";
 
@@ -52,6 +54,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   ]);
 
   if (!student) notFound();
+
+  const profilePhoto = files.find((file) => file.id === student.profilePhotoFileId) ?? null;
 
   const openBalance = student.invoices
     .filter((invoice) => invoice.status !== "PAID")
@@ -130,30 +134,71 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       </section>
 
       <section className="table-card" style={{ marginTop: 16 }}>
-        <h3>Foto e documentos do aluno</h3>
+        <h3>Foto do aluno</h3>
+        <div className="content-grid">
+          <div>
+            {profilePhoto ? (
+              <div>
+                <Image
+                  src={"/api/files/" + profilePhoto.id}
+                  alt={"Foto de " + student.name}
+                  width={160}
+                  height={160}
+                  unoptimized
+                  style={{ objectFit: "cover", borderRadius: 16 }}
+                />
+                <div style={{ marginTop: 8 }}>
+                  <FileDeleteButton fileId={profilePhoto.id} />
+                </div>
+              </div>
+            ) : (
+              <div className="muted">Nenhuma foto principal cadastrada.</div>
+            )}
+          </div>
+          <div>
+            <FileUploadForm
+              entityType="Student"
+              entityId={student.id}
+              defaultCategory="PROFILE_PHOTO"
+              lockCategory
+              accept="image/jpeg,image/png,image/webp"
+              buttonLabel={profilePhoto ? "Substituir foto" : "Enviar foto"}
+              compact
+            />
+            <div className="muted" style={{ marginTop: 8 }}>
+              JPG, PNG ou WEBP. Uma nova foto substitui a referência atual sem apagar o arquivo anterior automaticamente.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="table-card" style={{ marginTop: 16 }}>
+        <h3>Outros arquivos do aluno</h3>
         <FileUploadForm
           entityType="Student"
           entityId={student.id}
           defaultCategory="STUDENT_DOCUMENT"
           compact
         />
-        <div className="muted" style={{ marginTop: 8 }}>
-          Upload privado no storage da escola. Use a categoria PROFILE_PHOTO para a foto principal.
-        </div>
-        {files.length ? (
-          files.map((file) => (
-            <div className="table-row" key={file.id}>
-              <strong>{file.originalName}</strong>
-              <span>{file.category}</span>
-              <span>{file.uploadedBy.name}</span>
-              <a href={"/api/files/" + file.id} target="_blank" rel="noreferrer">
-                Abrir
-              </a>
-            </div>
-          ))
+        {files.filter((file) => file.id !== profilePhoto?.id).length ? (
+          files
+            .filter((file) => file.id !== profilePhoto?.id)
+            .map((file) => (
+              <div className="table-row" key={file.id}>
+                <strong>{file.originalName}</strong>
+                <span>{file.category}</span>
+                <span>{file.uploadedBy.name}</span>
+                <span>
+                  <a href={"/api/files/" + file.id} target="_blank" rel="noreferrer">
+                    Abrir
+                  </a>{" "}
+                  <FileDeleteButton fileId={file.id} />
+                </span>
+              </div>
+            ))
         ) : (
           <div className="muted" style={{ marginTop: 12 }}>
-            Nenhum arquivo anexado ao aluno.
+            Nenhum outro arquivo anexado ao aluno.
           </div>
         )}
       </section>
@@ -174,10 +219,30 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           <button className="btn btn-primary">Salvar documento</button>
         </form>
         {student.documentRequirements.map((document) => (
-          <div className="table-row" key={document.id}>
+          <div className="notice" key={document.id}>
             <strong>{document.label}</strong>
-            <span>{document.status}</span>
-            <span>{document.receivedAt ? document.receivedAt.toLocaleDateString("pt-BR") : "—"}</span>
+            <div className="muted">
+              {document.status} · {document.receivedAt ? document.receivedAt.toLocaleDateString("pt-BR") : "sem recebimento"}
+            </div>
+            {document.fileAssetId ? (
+              <div style={{ marginTop: 8 }}>
+                <a className="btn btn-light" href={"/api/files/" + document.fileAssetId} target="_blank" rel="noreferrer">
+                  Abrir arquivo
+                </a>{" "}
+                <FileDeleteButton fileId={document.fileAssetId} />
+              </div>
+            ) : (
+              <div style={{ marginTop: 8 }}>
+                <FileUploadForm
+                  entityType="StudentDocumentRequirement"
+                  entityId={document.id}
+                  defaultCategory="REQUIRED_DOCUMENT"
+                  lockCategory
+                  compact
+                  buttonLabel="Anexar documento"
+                />
+              </div>
+            )}
           </div>
         ))}
       </section>

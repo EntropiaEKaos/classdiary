@@ -65,7 +65,7 @@ export function buildStorageKey(params: {
 }
 
 function presign(params: {
-  method: "GET" | "PUT";
+  method: "GET" | "PUT" | "DELETE";
   key: string;
   expiresIn: number;
 }) {
@@ -123,6 +123,10 @@ export function presignPutObject(key: string, expiresIn = 900) {
 
 export function presignGetObject(key: string, expiresIn = 300) {
   return presign({ method: "GET", key, expiresIn });
+}
+
+export function presignDeleteObject(key: string, expiresIn = 300) {
+  return presign({ method: "DELETE", key, expiresIn });
 }
 
 export function s3Configured() {
