@@ -53,6 +53,16 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
   if (!student) notFound();
 
+  const now = new Date();
+  const activeEnrollment = student.enrollments.find((enrollment) => enrollment.active);
+  const pendingDocuments = student.documentRequirements.filter(
+    (document) => document.required && document.status === "PENDING",
+  );
+  const overdueInvoices = student.invoices.filter(
+    (invoice) => invoice.status !== "PAID" && invoice.dueAt < now,
+  );
+  const profilePhoto = files.find((file) => file.category === "PROFILE_PHOTO");
+
   const openBalance = student.invoices
     .filter((invoice) => invoice.status !== "PAID")
     .reduce(
@@ -69,12 +79,66 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       0,
     );
 
+  const profileFields = [
+    student.birthDate,
+    student.cpf,
+    student.rg,
+    student.guardianName,
+    student.guardianPhone,
+    student.guardianEmail,
+    student.addressLine,
+    student.addressCity,
+    student.addressState,
+    student.addressZip,
+    student.emergencyContactName,
+    student.emergencyContactPhone,
+  ];
+  const completedProfileFields = profileFields.filter(Boolean).length;
+  const profileCompletion = Math.round((completedProfileFields / profileFields.length) * 100);
+
+  const timeline = [
+    ...student.academicMovements.map((item) => ({
+      date: item.effectiveAt,
+      label: "Movimentação acadêmica",
+      detail: item.type,
+    })),
+    ...student.occurrences.map((item) => ({
+      date: item.occurredAt,
+      label: "Ocorrência",
+      detail: "Registro disciplinar ou pedagógico",
+    })),
+    ...student.medicalRecords.map((item) => ({
+      date: item.occurredAt,
+      label: "Saúde",
+      detail: "Registro de saúde atualizado",
+    })),
+    ...student.receipts.map((item) => ({
+      date: item.issuedAt,
+      label: "Financeiro",
+      detail: "Recibo emitido",
+    })),
+    ...files.map((item) => ({
+      date: item.createdAt,
+      label: "Documento",
+      detail: item.originalName,
+    })),
+  ]
+    .sort((a, b) => b.date.getTime() - a.date.getTime())
+    .slice(0, 12);
+
+  const birthDateLabel = student.birthDate
+    ? student.birthDate.toLocaleDateString("pt-BR")
+    : "Não informada";
+
   return (
     <main className="main">
       <div className="page-head">
         <div>
+          <div className="muted">Prontuário 360</div>
           <h1>{student.name}</h1>
-          <div className="muted">Matrícula {student.registration}</div>
+          <div className="muted">
+            Matrícula {student.registration} · {student.active ? "Aluno ativo" : "Aluno inativo"}
+          </div>
         </div>
         <a className="btn btn-light" href={"/dashboard/evolucao/" + student.id}>
           Evolução pedagógica
@@ -82,6 +146,105 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       </div>
 
       <section className="table-card">
+        <div className="page-head">
+          <div>
+            <h3>Visão geral do aluno</h3>
+            <div className="muted">
+              Informações essenciais, alertas e situação atual em um único lugar.
+            </div>
+          </div>
+          <div className="muted">Cadastro {profileCompletion}% completo</div>
+        </div>
+
+        <div className="dashboard-grid">
+          <div className="kpi">
+            <span className="muted">Turma atual</span>
+            <div className="value" style={{ fontSize: 20 }}>
+              {activeEnrollment?.classGroup.name ?? "Sem turma"}
+            </div>
+            <div className="muted">
+              {activeEnrollment?.classGroup.schoolYear.name ?? "Nenhuma matrícula ativa"}
+            </div>
+          </div>
+          <div className="kpi">
+            <span className="muted">Documentação</span>
+            <div className="value">{pendingDocuments.length}</div>
+            <div className="muted">
+              {pendingDocuments.length === 1 ? "pendência" : "pendências"} obrigatórias
+            </div>
+          </div>
+          <div className="kpi">
+            <span className="muted">Financeiro</span>
+            <div className="value">R$ {openBalance.toFixed(2)}</div>
+            <div className="muted">
+              {overdueInvoices.length} {overdueInvoices.length === 1 ? "cobrança vencida" : "cobranças vencidas"}
+            </div>
+          </div>
+          <div className="kpi">
+            <span className="muted">Responsável</span>
+            <div className="value" style={{ fontSize: 20 }}>
+              {student.guardianName ?? "Não informado"}
+            </div>
+            <div className="muted">{student.guardianPhone ?? student.guardianEmail ?? "Sem contato"}</div>
+          </div>
+        </div>
+
+        <div className="content-grid" style={{ marginTop: 16 }}>
+          <div className="notice">
+            <strong>Dados pessoais</strong>
+            <div className="muted">Nascimento: {birthDateLabel}</div>
+            <div className="muted">CPF: {student.cpf ?? "Não informado"}</div>
+            <div className="muted">
+              Endereço: {[student.addressLine, student.addressNumber, student.addressCity]
+                .filter(Boolean)
+                .join(", ") || "Não informado"}
+            </div>
+          </div>
+          <div className="notice">
+            <strong>Saúde e emergência</strong>
+            <div className="muted">
+              Contato: {student.emergencyContactName ?? "Não informado"}
+              {student.emergencyContactPhone ? " · " + student.emergencyContactPhone : ""}
+            </div>
+            <div className="muted">
+              {student.healthNotes ? student.healthNotes : "Nenhuma observação de saúde cadastrada."}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {(pendingDocuments.length > 0 || overdueInvoices.length > 0 || !activeEnrollment) && (
+        <section className="table-card" style={{ marginTop: 16 }}>
+          <h3>Central de atenção</h3>
+          <div className="content-grid">
+            {pendingDocuments.length > 0 && (
+              <div className="notice">
+                <strong>Documentação pendente</strong>
+                <div className="muted">
+                  {pendingDocuments.map((document) => document.label).slice(0, 4).join(" · ")}
+                  {pendingDocuments.length > 4 ? " · +" + (pendingDocuments.length - 4) : ""}
+                </div>
+              </div>
+            )}
+            {overdueInvoices.length > 0 && (
+              <div className="notice">
+                <strong>Financeiro requer atenção</strong>
+                <div className="muted">
+                  {overdueInvoices.length} {overdueInvoices.length === 1 ? "cobrança vencida" : "cobranças vencidas"}.
+                </div>
+              </div>
+            )}
+            {!activeEnrollment && (
+              <div className="notice">
+                <strong>Sem matrícula ativa</strong>
+                <div className="muted">O aluno não está vinculado a uma turma ativa neste momento.</div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      <section className="table-card" style={{ marginTop: 16 }}>
         <h3>Ficha cadastral</h3>
         <form action={updateStudentProfileAction} className="form-grid">
           <input type="hidden" name="studentId" value={student.id} />
@@ -130,7 +293,15 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       </section>
 
       <section className="table-card" style={{ marginTop: 16 }}>
-        <h3>Foto e documentos do aluno</h3>
+        <div className="page-head">
+          <div>
+            <h3>Foto e documentos do aluno</h3>
+            <div className="muted">
+              {profilePhoto ? "Foto de perfil cadastrada." : "Foto de perfil ainda não cadastrada."}
+            </div>
+          </div>
+          <div className="muted">{files.length} arquivo(s)</div>
+        </div>
         <FileUploadForm
           entityType="Student"
           entityId={student.id}
@@ -183,7 +354,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       </section>
 
       <section className="table-card" style={{ marginTop: 16 }}>
-        <h3>Prontuário 360 · visão consolidada</h3>
+        <h3>Prontuário 360 · indicadores</h3>
         <div className="dashboard-grid">
           <div className="kpi">
             <span className="muted">Arquivos</span>
@@ -207,28 +378,36 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       <div className="content-grid">
         <section className="table-card">
           <h3>Matrículas</h3>
-          {student.enrollments.map((enrollment) => (
-            <div className="notice" key={enrollment.id}>
-              <strong>
-                {enrollment.classGroup.schoolYear.name} · {enrollment.classGroup.name}
-              </strong>
-              <div className="muted">{enrollment.active ? "Ativa" : "Encerrada"}</div>
-            </div>
-          ))}
+          {student.enrollments.length ? (
+            student.enrollments.map((enrollment) => (
+              <div className="notice" key={enrollment.id}>
+                <strong>
+                  {enrollment.classGroup.schoolYear.name} · {enrollment.classGroup.name}
+                </strong>
+                <div className="muted">{enrollment.active ? "Ativa" : "Encerrada"}</div>
+              </div>
+            ))
+          ) : (
+            <div className="muted">Nenhuma matrícula encontrada.</div>
+          )}
         </section>
         <section className="table-card">
           <h3>Resultados anuais</h3>
-          {student.annualResults.map((result) => (
-            <div className="notice" key={result.id}>
-              <strong>
-                {result.schoolYear.name} · {result.status}
-              </strong>
-              <div className="muted">
-                Média {result.finalAverage ? String(result.finalAverage) : "—"} · Freq.{" "}
-                {result.attendancePercent ? String(result.attendancePercent) : "—"}%
+          {student.annualResults.length ? (
+            student.annualResults.map((result) => (
+              <div className="notice" key={result.id}>
+                <strong>
+                  {result.schoolYear.name} · {result.status}
+                </strong>
+                <div className="muted">
+                  Média {result.finalAverage ? String(result.finalAverage) : "—"} · Freq.{" "}
+                  {result.attendancePercent ? String(result.attendancePercent) : "—"}%
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <div className="muted">Nenhum resultado anual consolidado.</div>
+          )}
         </section>
       </div>
 
@@ -244,8 +423,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             <div className="value">{student.invoices.filter((invoice) => invoice.status !== "PAID").length}</div>
           </div>
           <div className="kpi">
-            <span className="muted">Recibos</span>
-            <div className="value">{student.receipts.length}</div>
+            <span className="muted">Vencidas</span>
+            <div className="value">{overdueInvoices.length}</div>
           </div>
           <div className="kpi">
             <span className="muted">Saldo em aberto</span>
@@ -255,16 +434,35 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       </section>
 
       <section className="table-card" style={{ marginTop: 16 }}>
+        <h3>Linha do tempo recente</h3>
+        {timeline.length ? (
+          timeline.map((event, index) => (
+            <div className="table-row" key={event.date.toISOString() + "-" + index}>
+              <strong>{event.label}</strong>
+              <span>{event.detail}</span>
+              <span>{event.date.toLocaleDateString("pt-BR")}</span>
+            </div>
+          ))
+        ) : (
+          <div className="muted">Ainda não há eventos recentes no prontuário deste aluno.</div>
+        )}
+      </section>
+
+      <section className="table-card" style={{ marginTop: 16 }}>
         <h3>Movimentações acadêmicas</h3>
-        {student.academicMovements.map((movement) => (
-          <div className="table-row" key={movement.id}>
-            <strong>{movement.type}</strong>
-            <span>
-              {movement.fromClassGroup?.name ?? "—"} → {movement.toClassGroup?.name ?? "—"}
-            </span>
-            <span>{movement.effectiveAt.toLocaleDateString("pt-BR")}</span>
-          </div>
-        ))}
+        {student.academicMovements.length ? (
+          student.academicMovements.map((movement) => (
+            <div className="table-row" key={movement.id}>
+              <strong>{movement.type}</strong>
+              <span>
+                {movement.fromClassGroup?.name ?? "—"} → {movement.toClassGroup?.name ?? "—"}
+              </span>
+              <span>{movement.effectiveAt.toLocaleDateString("pt-BR")}</span>
+            </div>
+          ))
+        ) : (
+          <div className="muted">Nenhuma movimentação acadêmica registrada.</div>
+        )}
       </section>
     </main>
   );
